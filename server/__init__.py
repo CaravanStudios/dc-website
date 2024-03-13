@@ -101,7 +101,9 @@ def register_routes_base_dc(app):
 
 def register_routes_custom_dc(app):
   ## apply the blueprints for custom dc instances
-  pass
+  ## apply the blueprints for custom dc instances
+  from server.routes import ts_issue_landing
+  app.register_blueprint(ts_issue_landing.bp)
 
 
 def register_routes_disasters(app):
