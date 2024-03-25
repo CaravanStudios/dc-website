@@ -18,7 +18,7 @@
  * Main component for topic pages.
  */
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { RawIntlProvider } from "react-intl";
 
 import { SubjectPageMainPane } from "../../components/subject_page/main_pane";
@@ -27,8 +27,9 @@ import {
   SubjectPageSidebar,
 } from "../../components/subject_page/sidebar";
 import { intl } from "../../i18n/i18n";
+import { ChildPlaces } from "../../shared/child_places";
 import { SdgContext } from "../../shared/context";
-import { NamedTypedPlace } from "../../shared/types";
+import { ChildPlacesByType, NamedTypedPlace } from "../../shared/types";
 import { TopicsSummary } from "../../types/app/topic_page_types";
 import { SubjectPageConfig } from "../../types/subject_page_proto_types";
 import { PageSelector } from "./page_selector";
@@ -54,6 +55,18 @@ interface AppPropType {
    * Summary of all available page configs
    */
   topicsSummary: TopicsSummary;
+  /**
+   * Show child places
+   */
+  showChildPlaces?: boolean;
+  /**
+   * Child places
+   */
+  childPlaces?: ChildPlacesByType;
+  /**
+   * Display searchbar
+   */
+  displaySearchbar?: boolean;
 }
 
 const PAGE_ID = "topic";
@@ -61,7 +74,7 @@ const PAGE_ID = "topic";
 const SHOW_WEB_COMPONENTS_URL_PARAM = "wc";
 export function App(props: AppPropType): JSX.Element {
   const [sdgIndex, setSdgIndex] = useState(props.topic === "sdg" ? 0 : null);
-  const value = { sdgIndex, setSdgIndex };
+  const value = useMemo(() => ({ sdgIndex, setSdgIndex }), [sdgIndex]);
   const searchParams = new URLSearchParams(location.search);
   const showWebComponents = !!searchParams.get(SHOW_WEB_COMPONENTS_URL_PARAM);
   return (
@@ -86,8 +99,29 @@ export function App(props: AppPropType): JSX.Element {
                 categories={props.pageConfig.categories}
               />
             )}
+            {props.topic !== "sdg" && props.showChildPlaces && (
+              <ChildPlaces
+                childPlaces={props.childPlaces}
+                parentPlace={props.place}
+                urlFormatString={`/topic/${props.topic}/\${placeDcid}`}
+              ></ChildPlaces>
+            )}
           </div>
           <div className="row col-md-9x col-lg-9">
+            {props.displaySearchbar && (
+              <div className="topicpage-searchbar">
+                <div className="search border">
+                  <div id="location-field">
+                    <div id="search-icon"></div>
+                    <input
+                      id="place-autocomplete"
+                      placeholder="Enter a state, county or city"
+                      type="text"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             <PageSelector
               selectedPlace={props.place}
               morePlaces={props.morePlaces}

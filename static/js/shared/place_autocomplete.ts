@@ -24,7 +24,10 @@ let acs: google.maps.places.AutocompleteService;
  *
  * Note: i18n.loadLocaleData must be called before this.
  */
-function initSearchAutocomplete(urlPrefix: string): void {
+function initSearchAutocomplete(
+  urlPrefix: string,
+  restrictions?: google.maps.places.ComponentRestrictions
+): void {
   // Create the autocomplete object, restricting the search predictions to
   // geographical location types.
   const options = {
@@ -38,6 +41,9 @@ function initSearchAutocomplete(urlPrefix: string): void {
   ac.addListener("place_changed", () => {
     placeChangedCallback(urlPrefix);
   });
+  if (restrictions) {
+    ac.setComponentRestrictions(restrictions);
+  }
   // Create the autocomplete service.
   acs = new google.maps.places.AutocompleteService();
 }

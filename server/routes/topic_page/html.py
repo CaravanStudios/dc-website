@@ -27,11 +27,16 @@ import server.lib.util as libutil
 import server.routes.shared_api.place as place_api
 import server.services.datacommons as dc
 
+
+# TechSoup - add search bar and child places
+_TOPICS_TO_DISPLAY_SEARCH_BAR = ["foodsecurity", "climate", "climate_allvars"]
+_TOPICS_TO_SHOW_CHILD_PLACES = ["foodsecurity", "climate", "climate_allvars"]
+
 _NL_DISASTER_TOPIC = 'nl_disasters'
 _SDG_TOPIC = 'sdg'
 _DEBUG_TOPICS = ['dev', _SDG_TOPIC, _NL_DISASTER_TOPIC]
 _SDG_COMPARISON_PLACES = [
-    'country/USA', 'country/CHN', 'country/JPN', 'country/IND'
+  'country/USA', 'country/CHN', 'country/JPN', 'country/IND'
 ]
 # Max number of places; Choose 6 to match the bar_tile bar limits.
 _MAX_NUM_PLACES = 6
@@ -42,7 +47,7 @@ bp = flask.Blueprint('topic_page', __name__, url_prefix='/topic')
 def get_sdg_config(place_dcid, more_places, topic_config):
   topic_place_config = topic_config
   topic_place_config.metadata.place_dcid.append(place_dcid)
-  # Populuate comparison places (fixed places) for all tiles
+  # Populate comparison places (fixed places) for all tiles
   comparison_places = [place_dcid]
   if more_places:
     comparison_places.extend(more_places)
@@ -57,7 +62,7 @@ def get_sdg_config(place_dcid, more_places, topic_config):
         for tile in column.tiles:
           tile.comparison_places.extend(comparison_places)
   topic_place_config = lib_subject_page_config.remove_empty_charts(
-      topic_place_config, place_dcid, '')
+    topic_place_config, place_dcid, '')
   return topic_place_config
 
 
@@ -88,14 +93,14 @@ def topic_page(topic_id=None, place_dcid=None):
     return "Error: no config found"
   if not place_dcid:
     return flask.render_template(
-        'topic_page.html',
-        place_type="",
-        place_name="",
-        place_dcid="",
-        topic_id=topic_id,
-        topic_name=topic_configs[0].metadata.topic_name or "",
-        config={},
-        topics_summary=topics_summary)
+      'topic_page.html',
+      place_type="",
+      place_name="",
+      place_dcid="",
+      topic_id=topic_id,
+      topic_name=topic_configs[0].metadata.topic_name or "",
+      config={},
+      topics_summary=topics_summary)
 
   more_places = request.args.getlist('places')
 
@@ -128,22 +133,44 @@ def topic_page(topic_id=None, place_dcid=None):
     if not topic_place_config:
       return "Error: no config found"
     contained_place_type = topic_place_config.metadata.contained_place_types.get(
-        place_type, None)
+      place_type, None)
     topic_place_config = lib_subject_page_config.remove_empty_charts(
-        topic_place_config, place_dcid, contained_place_type)
+      topic_place_config, place_dcid, contained_place_type)
 
   place_names = place_api.get_i18n_name([place_dcid])
   if place_names:
     place_name = place_names[place_dcid]
   else:
     place_name = place_dcid
+
+  # [TECHSOUP] call place_metadata function to get child places. TO DO: refactor to avoid redundant info returned by place_metadata
+  if topic_id in _TOPICS_TO_SHOW_CHILD_PLACES:
+    show_child_places = True
+    place_metadata = lib_subject_page_config.place_metadata(place_dcid, True, None,  'name')
+    place_children = place_metadata.child_places
+    if place_dcid == 'country/USA':
+      place_children.pop('Country',
+                         None);  # HACK: Remove Country from US places to prevent American Samoa from showing up.
+  else:
+    show_child_places = False
+    place_children = []
+
+  if topic_id in _TOPICS_TO_DISPLAY_SEARCH_BAR:
+    display_searchbar = True
+  else:
+    display_searchbar = False
+
   return flask.render_template(
-      'topic_page.html',
-      place_type=place_type,
-      place_name=place_name,
-      place_dcid=place_dcid,
-      more_places=json.dumps(more_places),
-      topic_id=topic_id,
-      topic_name=topic_place_config.metadata.topic_name or "",
-      page_config=MessageToJson(topic_place_config),
-      topics_summary=topics_summary)
+    'topic_page.html',
+    place_type=place_type,
+    place_name=place_name,
+    place_dcid=place_dcid,
+    more_places=json.dumps(more_places),
+    topic_id=topic_id,
+    topic_name=topic_place_config.metadata.topic_name or "",
+    page_config=MessageToJson(topic_place_config),
+    topics_summary=topics_summary,
+    show_child_places=json.dumps(show_child_places),
+    place_children=json.dumps(place_children),
+    display_searchbar=json.dumps(display_searchbar),
+    maps_api_key=current_app.config['MAPS_API_KEY'])

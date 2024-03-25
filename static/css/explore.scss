@@ -16,6 +16,7 @@
 
 @use "./shared/subject_page";
 @use "./nl_search_bar";
+
 @import "./tools/base_tools";
 @import "./draw";
 @import "./draw_choropleth";
@@ -25,25 +26,8 @@
 @import "./shared/story_chart";
 @import "./nl_interface";
 
-#main {
-  height: auto;
-  min-height: 100vh;
-}
-
 #main-header {
-  height: fit-content;
-  width: 100%;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-#explore.main-content {
-  flex-grow: 1;
-}
-
-#explore.main-content {
-  flex-grow: 1;
+  height: 72px;
 }
 
 #insight-lhs {
@@ -62,36 +46,39 @@
   .explore-charts {
     font-size: 1.25rem;
   }
-
-  .explore-charts.place-overview-only {
-    #subject-page-main-pane {
-      .category {
-        padding-top: 0;
-      }
-
-      .block {
-        padding-top: 0;
-      }
-    }
-  }
 }
 
-#explore-more-section {
-  padding: 24px;
-  border-radius: var(--border-radius-primary);
-  border: var(--border-primary);
-  background: var(--gm-3-white);
-  margin-top: 24px;
+.search-section {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  margin: 20px 0;
 
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
-
-  .explore-more-box {
-    display: flex;
+  .btn {
+    height: 2.5rem;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
   }
-  .explore-more-prompt {
-    line-height: 24px;
+
+  .experiment-tag {
+    border-radius: 10px;
+    border-style: solid;
+    border-width: 3px;
+    color: var(--blue);
+    display: flex;
+    float: left;
+    font: normal 0.85em monospace;
+    padding: 4px 6px;
+    height: 80%;
+    margin-right: 20px;
+  }
+
+  .history-button {
+    margin-left: 0.5rem;
+  }
+
+  .search-box-section {
+    width: 100%;
   }
 }
 
@@ -164,20 +151,8 @@
 }
 
 #place-callout {
-  font-weight: 400;
-  font-size: 28px;
-  line-height: 36px;
-  color: var(--gm-3-ref-neutral-neutral-20);
-  padding-bottom: 16px;
-
-  .place-callout-link {
-    color: inherit;
-  }
-
-  .place-callout-link:hover {
-    color: var(--link-color);
-    text-decoration: underline;
-  }
+  font-weight: bold;
+  font-size: 25px;
 }
 
 .topic-item {
@@ -190,129 +165,14 @@
 
 #user-message {
   margin-top: 1rem;
-  padding-bottom: 1rem;
+  padding-top: 1rem;
   width: 100%;
   font-weight: 500;
   font-size: 0.9rem;
   color: var(--dc-gray);
 }
 
-.explore-topics-box {
-  display: flex;
-  .explore-relevant-topics {
-    min-width: 120px;
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 24px;
-    color: rgb(94, 94, 94);
-  }
-}
-
-.related-places,
-.user-message-container {
-  padding: 24px;
-  border-radius: var(--border-radius-primary);
-  border: var(--border-primary);
-  background: var(--gm-3-white);
-  margin-bottom: 24px;
-  width: 100%;
-}
-
-.related-places .related-places-callout {
-  margin-bottom: 16px;
-}
-
-.user-message-container {
-  display: flex;
-  gap: 15px;
-  border: none;
-  background: none;
-  align-items: stretch;
-
-  .user-message {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: stretch;
-
-    .user-message-text {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      flex-grow: 1;
-      justify-content: center;
-
-      .main-message {
-        font-size: 16px;
-      }
-
-      .sub-message {
-        font-size: 14px;
-      }
-    }
-
-    .item-list-container {
-      margin-top: 16px;
-      margin-left: -8px;
-    }
-
-    .bottom-border {
-      border-bottom: var(--border-primary);
-    }
-  }
-}
-
-.chart-container.map-chart {
-  flex-grow: 1;
-}
-
-.search-section-container {
-  width: 100%;
-
-  .search-section-content {
-    position: relative;
-  }
-
-  .debug-info-toggle {
-    top: -0.5rem;
-    right: 1.5rem;
-    padding: 0;
-  }
-}
-
-.search-section-container.sticky {
-  position: fixed;
-  left: 0;
-  background-color: var(--gm-3-ref-primary-primary-99);
-  z-index: 9;
-  box-shadow: 0px 2px 3px rgba(0, 0, 0, 0.1);
-  padding: 16px 0;
-  transition: all ease-out 0.2s;
-
-  .search-section {
-    margin: 0;
-  }
-
-  #query-search-input {
-    height: 30px;
-    font-size: 13px;
-  }
-
-  .search-bar .search-bar-content #rich-search-button {
-    height: 30px;
-    width: 30px;
-    background-size: contain;
-  }
-}
-
-.nl-query-result-debug-info {
-  position: absolute;
-  z-index: 20;
-  height: calc(100vh - 100px);
-  overflow-y: scroll;
-  max-width: 100%;
-}
-
-#ranking-table-container {
-  margin-left: 24px;
+.nav-item.highlight {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 0.5rem;
 }

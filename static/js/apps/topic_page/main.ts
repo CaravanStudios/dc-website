@@ -23,9 +23,11 @@ import ReactDOM from "react-dom";
 
 import { DEFAULT_PAGE_PLACE_TYPE } from "../../constants/subject_page_constants";
 import { loadLocaleData } from "../../i18n/i18n";
-import { NamedTypedPlace } from "../../shared/types";
+import { initSearchAutocomplete } from "../../shared/place_autocomplete";
+import { ChildPlacesByType, NamedTypedPlace } from "../../shared/types";
 import { TopicsSummary } from "../../types/app/topic_page_types";
 import { App } from "./app";
+import { sortBy } from "lodash";
 
 window.onload = () => {
   loadLocaleData("en", [import("../../i18n/compiled-lang/en/units.json")]).then(
@@ -53,6 +55,28 @@ function renderPage(): void {
     document.getElementById("topic-config").dataset.topicsSummary
   );
 
+  const showChildPlaces: boolean = JSON.parse(
+    document.getElementById("topic-page-options").dataset.showChildPlaces
+  );
+  const childPlaces: ChildPlacesByType = JSON.parse(
+    document.getElementById("place-children").dataset.pc
+  );
+  const displaySearchbar: boolean = JSON.parse(
+    document.getElementById("topic-page-options").dataset.displaySearchbar
+  );
+
+  const sortChildPlacesBy = (
+    childPlaces: ChildPlacesByType,
+    propName: string
+  ): ChildPlacesByType =>
+    Object.keys(childPlaces).reduce(
+      (previousValue, currentValue) => ({
+        ...previousValue,
+        currentValue: sortBy(childPlaces[currentValue], [propName]),
+      }),
+      {} as ChildPlacesByType
+    );
+
   // TODO(beets): use locale from URL
   const locale = "en";
   loadLocaleData(locale, [
@@ -74,7 +98,12 @@ function renderPage(): void {
       topic,
       pageConfig,
       topicsSummary,
+      showChildPlaces,
+      childPlaces: sortChildPlacesBy(childPlaces, "name"),
+      displaySearchbar,
     }),
     document.getElementById("body")
   );
+
+  initSearchAutocomplete(`/topic/${topic}`, { country: "us" });
 }
