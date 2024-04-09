@@ -67,7 +67,7 @@ if [[ $SCREENSHOT_DOMAIN != "" ]]; then
   echo "====================================================================================="
   echo "Starting screenshot tests on $SCREENSHOT_DOMAIN"
   echo "====================================================================================="
-  python3 screenshot.py -d $SCREENSHOT_DOMAIN
+  python3 screenshot.py -d $SCREENSHOT_DOMAIN -u $WEB_API_ROOT
   gsutil -o "GSUtil:parallel_process_count=1" -m cp ./screenshots/*.png ./screenshots/*.json gs://datcom-website-screenshot/$SCREENSHOT_DOMAIN/$date_str/
   rm -rf ./screenshots/*
   echo "Finished the screenshot tests."
@@ -85,7 +85,6 @@ echo "==========================================================================
 mkdir -p input
 gsutil cp gs://datcom-website-adversarial/input/frequent/* input/
 dc_list=("main" "sdg")
-date_str=$(TZ="America/Los_Angeles" date +"%Y_%m_%d_%H_%M_%S")
 for dc in "${dc_list[@]}"
 do
   echo "====================================================================================="

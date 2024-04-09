@@ -121,6 +121,7 @@
   },
   "context": {},
   "debug": {},
+  "entities": [],
   "pastSourceContext": "",
   "place": {
     "dcid": "geoId/06",
@@ -128,7 +129,7 @@
     "place_type": "State"
   },
   "placeFallback": {},
-  "placeSource": "UNKNOWN",
+  "placeSource": "CURRENT_QUERY",
   "places": [
     {
       "dcid": "geoId/06",

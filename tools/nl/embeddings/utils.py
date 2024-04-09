@@ -61,7 +61,7 @@ _MODEL_ENDPOINT_RETRYS = 3
 class Context:
   # Model
   model: Any
-  # Vertext AI model endpoint url
+  # Vertex AI model endpoint url
   model_endpoint: aiplatform.Endpoint
   # GCS storage bucket
   bucket: Any
@@ -228,7 +228,8 @@ def build_embeddings(ctx, text2sv: Dict[str, str]) -> pd.DataFrame:
       logging.info('texts %d to %d', i * _CHUNK_SIZE, (i + 1) * _CHUNK_SIZE - 1)
       for i in range(_MODEL_ENDPOINT_RETRYS):
         try:
-          resp = ctx.model_endpoint.predict(instances=chuck).predictions
+          resp = ctx.model_endpoint.predict(instances=chuck,
+                                            timeout=600).predictions
           embeddings.extend(resp)
           break
         except Exception as e:
@@ -321,6 +322,13 @@ def _get_default_ft_model_version(embeddings_yaml_file_path: str) -> str:
     raise ValueError(
         f"Invalid embeddings filename value: {embeddings_file_name}")
   return matcher.group(1)
+
+
+def save_embeddings_yaml_with_only_default_ft_embeddings(
+    embeddings_yaml_file_path: str, default_ft_embeddings_file_name: str):
+  data = {_DEFAULT_EMBEDDINGS_INDEX_TYPE: default_ft_embeddings_file_name}
+  with open(embeddings_yaml_file_path, "w") as f:
+    yaml.dump(data, f)
 
 
 def validate_embeddings(embeddings_df: pd.DataFrame,
