@@ -1,0 +1,17 @@
+services:
+  web:
+    image: ts-custom-dc-website-compose
+    platform: "linux/amd64"
+    build:
+      context: .
+      dockerfile: build/web_compose/Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.list
+    environment:
+      - DEBUG=true
+    volumes:
+      - ./custom_dc/sample:/userdata
+      - ./server:/workspace/server
+      - ./static:/workspace/static
