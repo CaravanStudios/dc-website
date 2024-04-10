@@ -77,9 +77,8 @@ def register_routes_base_dc(app):
 
 def register_routes_custom_dc(app):
   ## apply the blueprints for custom dc instances
-  ## apply the blueprints for custom dc instances
-  from server.routes import ts_issue_landing
-  app.register_blueprint(ts_issue_landing.bp)
+  from server.routes.ts_issue_landing import html as ts_issue_landing_html
+  app.register_blueprint(ts_issue_landing_html.bp)
 
 def register_routes_biomedical_dc(app):
   # Apply the blueprints specific to biomedical dc
@@ -277,9 +276,12 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
     configure_endpoints_from_ingress(ingress_config_path)
 
   register_routes_common(app)
+
   if not cfg.CUSTOM:
     # Only register biomedical DC routes if in main DC
     register_routes_biomedical_dc(app)
+  else:
+    register_routes_custom_dc(app)
 
   register_routes_base_dc(app)
   if cfg.SHOW_DISASTER:

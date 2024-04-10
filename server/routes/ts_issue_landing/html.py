@@ -13,18 +13,8 @@
 # limitations under the License.
 """Data Commons static content routes."""
 
-from datetime import date
-import json
-import os
-
 from flask import Blueprint
-from flask import current_app
-from flask import redirect
 from flask import render_template
-from flask import request
-
-import server.lib.render as lib_render
-from server.services import datacommons as dc
 
 bp = Blueprint('ts_issue_landing', __name__)
 
