@@ -25,11 +25,11 @@ steps:
 
         # Bundle container with website, esp and mixer.
         docker build -f build/web_compose/Dockerfile \
-          --tag ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA} \
-          --tag ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest \
+          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA} \
+          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest \
           .
-        docker push ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA}
-        docker push ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest
+        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA}
+        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest
     waitFor: ["-"]
 
   - id: deploy-web-compose-to-cloud-run
@@ -37,8 +37,8 @@ steps:
     entrypoint: gcloud
     args:
       - run datacommons
-      - --image ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest
-      - --region ${LOCATION}
+      - --image us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest
+      - --region us-central1
       - --allow-unauthenticated
       - --memory 8G
       - --platform managed
@@ -64,7 +64,7 @@ steps:
 #    waitFor: ["push-web-compose"]
 
 images:
-  -$LOCATION-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose
+  - us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose
 
 timeout: 3600s
 
