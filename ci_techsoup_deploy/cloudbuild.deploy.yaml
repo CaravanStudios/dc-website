@@ -25,12 +25,24 @@ steps:
 
         # Bundle container with website, esp and mixer.
         docker build -f build/web_compose/Dockerfile \
-          --tag gcr.io/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA} \
-          --tag gcr.io/${PROJECT_ID}/datacommons/website-compose:latest \
+          --tag ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA} \
+          --tag ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest \
           .
-        docker push gcr.io/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA}
-        docker push gcr.io/${PROJECT_ID}/datacommons/website-compose:latest
+        docker push ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA}
+        docker push ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest
     waitFor: ["-"]
+
+  - id: deploy-web-compose-to-cloud-run
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: gcloud
+    args:
+      - run datacommons
+      - --image ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest
+      - --region ${LOCATION}
+      - --allow-unauthenticated
+      - --memory 8G
+      - --platform managed
+    waitFor: ["push-web-compose"]
 
 #  - id: update version
 #    name: "gcr.io/cloud-builders/git"
@@ -50,6 +62,8 @@ steps:
 #        git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"
 #        git push origin ${BRANCH_NAME}
 #    waitFor: ["push-web-compose"]
+
+
 
 timeout: 3600s
 
