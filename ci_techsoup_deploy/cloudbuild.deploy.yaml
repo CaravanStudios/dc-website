@@ -55,7 +55,7 @@ steps:
       - |
         set -e
 
-        gcloud source repos clone dc-website /tmp/deployment --project="${PROJECT_ID}"
+        gcloud source repos clone CaravanStudios/dc-website /tmp/deployment --project="${PROJECT_ID}"
         cd /tmp/deployment
         # Configure Git to create commits with Cloud Build's service account
         git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
