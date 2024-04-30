@@ -63,7 +63,8 @@ steps:
 #        git push origin ${BRANCH_NAME}
 #    waitFor: ["push-web-compose"]
 
-
+images:
+  -${LOCATION}-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose
 
 timeout: 3600s
 
