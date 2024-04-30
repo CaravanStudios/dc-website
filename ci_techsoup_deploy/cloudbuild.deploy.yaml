@@ -25,11 +25,11 @@ steps:
 
         # Bundle container with website, esp and mixer.
         docker build -f build/web_compose/Dockerfile \
-          --tag gcr.io/$PROJECT_ID/datacommons/website-compose:${SHORT_SHA} \
-          --tag gcr.io/$PROJECT_ID/datacommons/website-compose:latest \
+          --tag gcr.io/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA} \
+          --tag gcr.io/${PROJECT_ID}/datacommons/website-compose:latest \
           .
-        docker push gcr.io/$PROJECT_ID/datacommons/website-compose:${SHORT_SHA}
-        docker push gcr.io/$PROJECT_ID/datacommons/website-compose:latest
+        docker push gcr.io/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA}
+        docker push gcr.io/${PROJECT_ID}/datacommons/website-compose:latest
     waitFor: ["-"]
 
   - id: update version
@@ -40,15 +40,15 @@ steps:
       - |
         set -e
 
-        gcloud source repos clone $BRANCH_NAME /tmp/deployment --project=$PROJECT_ID
-        cd /tmp/$BRANCH_NAME
+        gcloud source repos clone ${BRANCH_NAME} /tmp/deployment --project=${PROJECT_ID}
+        cd /tmp/${BRANCH_NAME}
         # Configure Git to create commits with Cloud Build's service account
         git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
         git checkout master
         echo $SHORT_SHA > website/autopush/commit_hash.txt
         git add website/autopush/commit_hash.txt
         git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"
-        git push origin $BRANCH_NAME
+        git push origin ${BRANCH_NAME}
     waitFor: ["push-web-compose"]
 
 timeout: 3600s
