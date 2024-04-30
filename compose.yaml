@@ -15,4 +15,5 @@ services:
       - ./custom_dc/sample:/userdata
       - ./server:/workspace/server
       - ./static:/workspace/static
-      - ./zz_scripts:/workspace/zz_scripts
+      - ./import:/workspace/import
+      - ./.tmp/sqliteData:/sqlite
