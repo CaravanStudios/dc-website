@@ -32,24 +32,24 @@ steps:
         docker push gcr.io/${PROJECT_ID}/datacommons/website-compose:latest
     waitFor: ["-"]
 
-  - id: update version
-    name: "gcr.io/cloud-builders/git"
-    entrypoint: /bin/bash
-    args:
-      - -c
-      - |
-        set -e
-
-        gcloud source repos clone ${BRANCH_NAME} /tmp/deployment --project=${PROJECT_ID}
-        cd /tmp/deployment
-        # Configure Git to create commits with Cloud Build's service account
-        git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
-        git checkout ${BRANCH_NAME}
-        echo $SHORT_SHA > website/autopush/commit_hash.txt
-        git add website/autopush/commit_hash.txt
-        git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"
-        git push origin ${BRANCH_NAME}
-    waitFor: ["push-web-compose"]
+#  - id: update version
+#    name: "gcr.io/cloud-builders/git"
+#    entrypoint: /bin/bash
+#    args:
+#      - -c
+#      - |
+#        set -e
+#
+#        gcloud source repos clone ${BRANCH_NAME} /tmp/deployment --project=${PROJECT_ID}
+#        cd /tmp/deployment
+#        # Configure Git to create commits with Cloud Build's service account
+#        git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
+#        git checkout ${BRANCH_NAME}
+#        echo $SHORT_SHA > website/autopush/commit_hash.txt
+#        git add website/autopush/commit_hash.txt
+#        git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"
+#        git push origin ${BRANCH_NAME}
+#    waitFor: ["push-web-compose"]
 
 timeout: 3600s
 
