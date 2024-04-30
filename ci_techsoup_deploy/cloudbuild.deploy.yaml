@@ -41,7 +41,7 @@ steps:
         set -e
 
         gcloud source repos clone ${BRANCH_NAME} /tmp/deployment --project=${PROJECT_ID}
-        cd /tmp/${BRANCH_NAME}
+        cd /tmp/deployment
         # Configure Git to create commits with Cloud Build's service account
         git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
         git checkout ${BRANCH_NAME}
