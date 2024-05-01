@@ -8,21 +8,21 @@
   "query_with_places_removed": "compare male population with female population",
   "sv_matching": {
     "CosineScore": [
-      0.9213768839836121,
-      0.889552891254425,
-      0.8393946290016174,
-      0.8070412874221802,
-      0.8065999150276184,
-      0.8025590777397156,
-      0.7949636578559875,
-      0.786206066608429,
-      0.784937858581543,
-      0.7820713520050049,
-      0.7810714840888977,
-      0.7803115248680115,
-      0.7780777215957642,
-      0.7691031694412231,
-      0.7682780027389526
+      0.9213767647743225,
+      0.8895533084869385,
+      0.839394211769104,
+      0.8070410490036011,
+      0.8066003322601318,
+      0.8025591373443604,
+      0.7949633598327637,
+      0.7862058877944946,
+      0.7849380970001221,
+      0.7820716500282288,
+      0.7810717821121216,
+      0.7803113460540771,
+      0.7780779600143433,
+      0.7691032290458679,
+      0.7682781219482422
     ],
     "MultiSV": {
       "Candidates": [
@@ -32,7 +32,7 @@
           "Parts": [
             {
               "CosineScore": [
-                1.0000003576278687
+                1.000000238418579
               ],
               "QueryPart": "male population",
               "SV": [
@@ -41,7 +41,7 @@
             },
             {
               "CosineScore": [
-                1.0000001192092896
+                0.9999998807907104
               ],
               "QueryPart": "female population",
               "SV": [
@@ -56,7 +56,7 @@
           "Parts": [
             {
               "CosineScore": [
-                0.8629987239837646
+                0.8629986643791199
               ],
               "QueryPart": "male",
               "SV": [
@@ -65,7 +65,7 @@
             },
             {
               "CosineScore": [
-                0.975785493850708
+                0.9757853746414185
               ],
               "QueryPart": "population female population",
               "SV": [
@@ -80,7 +80,7 @@
           "Parts": [
             {
               "CosineScore": [
-                0.931818962097168
+                0.9318187832832336
               ],
               "QueryPart": "male population female",
               "SV": [
@@ -89,7 +89,7 @@
             },
             {
               "CosineScore": [
-                0.9012578725814819
+                0.9012579917907715
               ],
               "QueryPart": "population",
               "SV": [
@@ -122,5 +122,20 @@
   "props_matching": {
     "CosineScore": [],
     "PROP": []
+  },
+  "query_detection_debug_logs": {
+    "dc_recognize_places": {},
+    "main_place_inferred": null,
+    "original_query": "Compare Male population with Female Population",
+    "place_dcid_inference": "Place DCID Inference did not trigger (no place strings found).",
+    "place_resolution": "Place resolution did not trigger (no place dcids found).",
+    "places_found_str": [],
+    "query_transformations": {
+      "place_detection_input": "Compare Male population with Female Population",
+      "place_detection_with_places_removed": "compare male population with female population",
+      "sv_detection_query_index_type": "",
+      "sv_detection_query_input": "compare male population with female population",
+      "sv_detection_query_stop_words_removal": "male population female population"
+    }
   }
 }

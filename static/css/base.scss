@@ -191,8 +191,9 @@ $theme-colors: (
 
 #main-footer #sub-footer {
   border-top: 1px solid $gray-300;
-  padding-top: 1.5rem;
-  padding-bottom: 3rem;
+  display: flex;
+  flex-direction: row;
+  padding: 4px 0;
   line-height: 2.5rem;
 }
 
