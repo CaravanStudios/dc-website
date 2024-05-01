@@ -13,60 +13,60 @@
 # limitations under the License.
 
 steps:
-#  - id: push-web-compose
-#    name: gcr.io/cloud-builders/docker
-#    entrypoint: "bash"
-#    args:
-#      - -c
-#      - |
-#        set -e
-#        git clone https://github.com/datacommonsorg/mixer.git
-#        git clone https://github.com/datacommonsorg/import.git
-#
-#        # Bundle container with website, esp and mixer.
-#        docker build -f build/web_compose/Dockerfile \
-#          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA} \
-#          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest \
-#          .
-#        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA}
-#        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest
-#    waitFor: ["-"]
-#
-#  - id: deploy-web-compose-to-cloud-run
-#    name: 'gcr.io/cloud-builders/gcloud'
-#    entrypoint: /bin/bash
-#    args:
-#      - -c
-#      - |
-#        set -e
-#        gcloud run deploy datacommons \
-#        --image us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest \
-#        --region us-central1 \
-#        --allow-unauthenticated \
-#        --memory 8G \
-#        --platform managed
-#    waitFor: ["push-web-compose"]
+  - id: push-web-compose
+    name: gcr.io/cloud-builders/docker
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        set -e
+        git clone https://github.com/datacommonsorg/mixer.git
+        git clone https://github.com/datacommonsorg/import.git
 
-  - id: update version
-    name: "gcr.io/cloud-builders/git"
+        # Bundle container with website, esp and mixer.
+        docker build -f build/web_compose/Dockerfile \
+          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA} \
+          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest \
+          .
+        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:${SHORT_SHA}
+        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest
+    waitFor: ["-"]
+
+  - id: deploy-web-compose-to-cloud-run
+    name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: /bin/bash
     args:
       - -c
       - |
         set -e
+        gcloud run deploy datacommons \
+        --image us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:latest \
+        --region us-central1 \
+        --allow-unauthenticated \
+        --memory 8G \
+        --platform managed
+    waitFor: ["push-web-compose"]
 
-        git clone https://github.com/CaravanStudios/dc-website /tmp/deployment
-        cd /tmp/deployment
-        # Configure Git to create commits with Cloud Build's service account
-        git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
-        git checkout $BRANCH_NAME
-        mkdir -p `dirname website/autopush/commit_hash.txt`
-        echo $SHORT_SHA > website/autopush/commit_hash.txt
-        git add website/autopush/commit_hash.txt
-        git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"
-        git push origin $BRANCH_NAME
-#    waitFor: ["push-web-compose"]
-    waitFor: ["-"]
+#  - id: update version
+#    name: "gcr.io/cloud-builders/git"
+#    entrypoint: /bin/bash
+#    args:
+#      - -c
+#      - |
+#        set -e
+#
+#        git clone https://github.com/CaravanStudios/dc-website /tmp/deployment
+#        cd /tmp/deployment
+#        # Configure Git to create commits with Cloud Build's service account
+#        git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
+#        git checkout $BRANCH_NAME
+#        mkdir -p `dirname website/autopush/commit_hash.txt`
+#        echo $SHORT_SHA > website/autopush/commit_hash.txt
+#        git add website/autopush/commit_hash.txt
+#        git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"
+#        git push origin $BRANCH_NAME
+##    waitFor: ["push-web-compose"]
+#    waitFor: ["-"]
 
 timeout: 3600s
 
