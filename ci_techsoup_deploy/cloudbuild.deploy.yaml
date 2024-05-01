@@ -60,6 +60,7 @@ steps:
         # Configure Git to create commits with Cloud Build's service account
         git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
         git checkout $BRANCH_NAME
+        mkdir -p `dirname website/autopush/commit_hash.txt`
         echo $SHORT_SHA > website/autopush/commit_hash.txt
         git add website/autopush/commit_hash.txt
         git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"

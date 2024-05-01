@@ -27,3 +27,5 @@ server/dist/
 **/.env/
 
 screenshots/*.png
+
+website/autopush/commit_hash.txt
