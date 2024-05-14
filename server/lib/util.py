@@ -56,6 +56,7 @@ TOPIC_PAGE_CONFIGS = {
     'sdg': ['sdg'],
     'climate': ['USA'],
     'foodsecurity': ['USA'],
+    'development': ['NGA'],
     'foodsecurity_old': ['CA'],
     'economic-and-social-growth': ['COL'],
     'climate_allvars': ['USA'],
