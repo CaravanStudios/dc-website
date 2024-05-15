@@ -25,6 +25,7 @@ import axios from "axios";
 import _ from "lodash";
 import React, { useEffect, useRef, useState } from "react";
 import { FormattedMessage } from "react-intl";
+import ReactMarkdown from "react-markdown";
 import { Input, UncontrolledTooltip } from "reactstrap";
 
 import { getVariableNameProcessingFn } from "../../../library/utils";
@@ -640,7 +641,7 @@ function renderTiles(
       case "DESCRIPTION":
         return (
           <p key={id} className="description-tile">
-            {tile.description}
+            <ReactMarkdown>{tile.description}</ReactMarkdown>
           </p>
         );
       case "PLACE_OVERVIEW":
@@ -982,7 +983,7 @@ function renderWebComponents(
       case "DESCRIPTION":
         return (
           <p key={id} className="description-tile">
-            {tile.description}
+            <ReactMarkdown>{tile.description}</ReactMarkdown>
           </p>
         );
       case "PLACE_OVERVIEW":

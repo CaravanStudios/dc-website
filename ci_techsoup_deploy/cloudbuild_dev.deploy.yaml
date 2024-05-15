@@ -39,7 +39,7 @@ steps:
       - -c
       - |
         set -e
-        gcloud run deploy datacommons \
+        gcloud run deploy datacommons-dev \
         --image us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/website-compose:dev \
         --region us-central1 \
         --allow-unauthenticated \
