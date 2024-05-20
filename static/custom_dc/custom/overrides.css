@@ -196,6 +196,7 @@ section.data-examples article {
 
 .navbar-brand #brand-name-link {
   text-decoration: none;
+  margin-right: 1rem;
 }
 
 .navbar-brand #brand-name-title {

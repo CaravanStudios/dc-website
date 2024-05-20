@@ -18,8 +18,17 @@
 
 {% set main_id = 'homepage' %}
 {% set page_id = 'page-homepage' %}
+{% block head %}
+<link rel="stylesheet" href={{url_for('static', filename='css/homepage.min.css', t=config['VERSION'])}}>
+<script src={{url_for('static', filename='homepage_custom_dc.js', t=config['VERSION'])}} async></script>
+
+{% endblock %}
 
 {% block content %}
+  <section id="homepage-top">
+    <div id="search-container" class="container">
+    </div>
+  </section>
   <section class="container">
     <div class="homepage-header"></div>
   </section>
