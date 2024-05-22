@@ -15,16 +15,25 @@
  */
 
 :root {
-  --dc-primary: #5d5f65;
-  --link-color: #514ea3;
-  --footer-bg: white;
+  /*--dc-primary: #5d5f65;*/
+  --dc-primary: #555555;
+  /*--link-color: #514ea3;*/
+  --link-color: #00739f;
+  /*--footer-bg: white;*/
   --dc-red-fade: #40d4e033;
+  --footer-bg: #fafcff;
+  --dc-brand-color: #ff8300;
 }
 
 #main-header {
   background: white;
   box-shadow: 0 5px 5px 0 rgba(6, 6, 6, 0.18);
   z-index: 10;
+}
+
+#main-nav {
+  height: fit-content;
+  background-color: white;
 }
 
 #main-nav a {
@@ -45,6 +54,12 @@
 
 #main-footer {
   border-top: 1px solid #efefef;
+  padding-top: 0;
+}
+
+#main-footer #sub-footer {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
 }
 
 /* TechSoup overrides */
@@ -77,11 +92,7 @@
   margin-left: 20px;
   margin-right: 20px;
   margin-top: 20px;
-  padding-left: 10px;
-  padding-right: 10px;
-  padding-top: 10px;
-  padding-bottom: 10px;
-
+  padding: 10px;
 }
 
 .foodsec-landing-header {
@@ -122,10 +133,7 @@
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  margin-left: 1rem;
-  margin-right: 1rem;
+  margin: 1rem;
 }
 
 .cta-button:hover {
@@ -151,10 +159,7 @@
 }
 
 #homepage #new-update .highlight {
-  margin-top: 2rem;
-  margin-bottom: 2rem;
-  margin-left: 2em;
-  margin-right: 2em;
+  margin: 2rem;
 }
 
 h1 {
@@ -165,9 +170,9 @@ h3 {
   margin-bottom: 1rem;
 }
 
-.container {
-  margin-bottom: 3rem;
-}
+/*.container {*/
+/*  margin-bottom: 3rem;*/
+/*}*/
 
 section.data-examples article {
   margin-bottom: 3rem;
@@ -213,4 +218,66 @@ section.data-examples article {
 
 .navbar-nav > li > a {
   font-size: 15px !important;
+}
+
+#dc-topic-page #child-places {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #efefef;
+}
+
+#dc-topic-page #child-places #child-place-head {
+    font-weight: 600;
+    font-size: .9rem;
+    color: var(--dc-gray);
+}
+
+#dc-topic-page #child-places .child-place-group {
+    margin-bottom: 1rem;
+    margin-top: .5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+#dc-topic-page #child-places .child-place-link {
+    color: var(--dc-gray);
+    font-size: 0.9rem;
+    text-decoration: underline;
+}
+
+#dc-topic-page .topicpage-searchbar #location-field {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    flex-direction: row;
+    background: #fff;
+}
+
+#dc-topic-page .topicpage-searchbar #place-autocomplete {
+    display: flex;
+    flex-grow: 1;
+    height: 44px;
+    margin-left: 28px;
+    border: none;
+    box-sizing: border-box;
+    outline: none;
+    font-family: "Roboto", serif;
+    font-size: 14px;
+    color: #202124;
+    letter-spacing: 0;
+    background: url("/images/icon-search.svg") no-repeat right 16px top 50%;
+}
+
+#dc-topic-page .topicpage-searchbar #search-icon {
+    width: 36px;
+    height: 36px;
+    margin-right: -32px;
+    background: url("/images/icon-pin.svg") no-repeat center;
+}
+
+#dc-topic-page .topicpage-searchbar .search {
+    border-radius: 8px;
+    margin-top: -6px;
+    overflow: hidden;
 }
