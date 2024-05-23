@@ -103,14 +103,27 @@ content - main page content
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse justify-content-md-end" id="dc-main-nav">
-                    <ul class="navbar-nav float-md-right">
+                    <ul class="navbar-nav float-md-right align-items-center">
                         <li class="nav-item dropdown">
-                            <a href="{{ url_for('place.place') }}" id="nav-place"
-                               class="nav-link-main "><span>Places</span></a>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a href="{{ url_for('tools.visualization')}}" id="nav-timeline"
-                               class="nav-link-main "><span>Visualization</span></a>
+                            <a class="nav-link dropdown-toggle" href="#" id="nav-explore-dropdown" role="button"
+                               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                               aria-label="Show exploration tools">
+                                Explore Data
+                            </a>
+                            <div class="dropdown-menu" aria-labelledby="nav-explore-dropdown">
+                                <a class="dropdown-item" href="{{ url_for('place.place') }}">
+                                    Place Explorer
+                                </a>
+                                <a class="dropdown-item" href="{{ url_for('tools.visualization')}}#visType=map">
+                                    Map Explorer
+                                </a>
+                                <a class="dropdown-item" href="{{ url_for('tools.visualization')}}#visType=scatter">
+                                    Scatter Plot Explorer
+                                </a>
+                                <a class="dropdown-item" href="{{ url_for('tools.visualization')}}#visType=timeline">
+                                    Timelines Explorer
+                                </a>
+                            </div>
                         </li>
                         <li class="nav-item dropdown">
                             <a href="{{ url_for('tools.download') }}" id="nav-download"
