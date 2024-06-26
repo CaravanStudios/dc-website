@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { DataCommonsClient } from "@datacommonsorg/client";
 import * as d3 from "d3";
 import _ from "lodash";
 import React from "react";
@@ -59,7 +60,7 @@ import { getStatsVarLabel } from "../shared/stats_var_labels";
 import { NamedPlace } from "../shared/types";
 import { isDateTooFar, urlToDisplayText } from "../shared/util";
 import { RankingGroup, RankingPoint } from "../types/ranking_unit_types";
-import { datacommonsClient } from "../utils/datacommons_client";
+import { defaultDataCommonsClient } from "../utils/data_commons_client";
 import { transformCsvHeader } from "../utils/tile_utils";
 import { ChartEmbed } from "./chart_embed";
 import { getChoroplethData, getGeoJsonData } from "./fetch";
@@ -161,6 +162,7 @@ class Chart extends React.Component<ChartPropType, ChartStateType> {
   rankingUrlByStatVar: { [key: string]: string };
   statsVars: string[];
   placeLinkSearch: string; // Search parameter string including '?'
+  dataCommonsClient: DataCommonsClient;
 
   constructor(props: ChartPropType) {
     super(props);
@@ -436,7 +438,7 @@ class Chart extends React.Component<ChartPropType, ChartStateType> {
         // https://datacommons.org/place/geoId/06?category=Demographics
         if (this.props.chartType === chartTypeEnum.LINE) {
           // For line charts, return CSV series data
-          return datacommonsClient.getCsvSeries({
+          return defaultDataCommonsClient.getCsvSeries({
             entities,
             fieldDelimiter: CSV_FIELD_DELIMITER,
             transformHeader: transformCsvHeader,
@@ -445,7 +447,7 @@ class Chart extends React.Component<ChartPropType, ChartStateType> {
         } else if (this.props.parentPlaceDcid && this.props.enclosedPlaceType) {
           // Ranking & map charts set parentPlaceDcid and rankingPlaceType
           // Return csv results associated with this parent/child combination
-          return datacommonsClient.getCsv({
+          return defaultDataCommonsClient.getCsv({
             childType: this.props.enclosedPlaceType,
             fieldDelimiter: CSV_FIELD_DELIMITER,
             parentEntity: this.props.parentPlaceDcid,
@@ -455,7 +457,8 @@ class Chart extends React.Component<ChartPropType, ChartStateType> {
         }
         // All other charts should fetch data about specific entities and
         // variables
-        return datacommonsClient.getCsv({
+        return defaultDataCommonsClient.getCsv({
+          date: this.getDate(),
           entities,
           fieldDelimiter: CSV_FIELD_DELIMITER,
           transformHeader: transformCsvHeader,
@@ -756,18 +759,19 @@ class Chart extends React.Component<ChartPropType, ChartStateType> {
       : this.props.snapshot.sources;
   }
 
-  private getDateString(): string {
+  private getDate(): string {
     if (this.props.chartType == chartTypeEnum.CHOROPLETH) {
-      return this.state.choroplethDataGroup
-        ? "(" + this.state.choroplethDataGroup.date + ")"
-        : "";
+      return this.state.choroplethDataGroup?.date || "";
     }
     if (this.props.chartType === chartTypeEnum.RANKING) {
-      return this.state.rankingGroup
-        ? "(" + this.state.rankingGroup.dateRange + ")"
-        : "";
+      return this.state.rankingGroup?.dateRange || "";
     }
-    return this.props.snapshot ? "(" + this.props.snapshot.date + ")" : "";
+    return this.props.snapshot?.date || "";
+  }
+
+  private getDateString(): string {
+    const date = this.getDate();
+    return date ? `(${date})` : "";
   }
 
   private getRankingChartData(data: RankingGroup): {

@@ -25,6 +25,7 @@ from typing import Dict, List, Set
 import urllib
 
 from flask import make_response
+from flask import request
 from google.protobuf import text_format
 
 from server.config import subject_page_pb2
@@ -491,10 +492,13 @@ def is_up(url: str):
     # Disable Bandit security check 310. http scheme is already checked above.
     # Codacity still calls out the error so disable the check.
     # https://bandit.readthedocs.io/en/latest/blacklists/blacklist_calls.html#b310-urllib-urlopen
-    urllib.request.urlopen(url)  # nosec B310
-    return True
+    code = urllib.request.urlopen(url).getcode()  # nosec B310
+    if code != 200:
+      return False
   except urllib.error.URLError:
     return False
+  logging.info("%s is up running", url)
+  return True
 
 
 def check_backend_ready(urls: List[str]):
@@ -646,3 +650,22 @@ def _get_highest_coverage_date(observation_entity_counts_by_date,
   } for obs in observation_dates]
   best_coverage = max(date_counts, key=lambda date_count: date_count['count'])
   return best_coverage['date']
+
+
+def post_body_cache_key():
+  """
+  Builds flask cache key for GET and POST requests.
+  
+  GET: Key is URL path + query string parameters. Example: '/test?key=value'
+  POST: (Requires Content-Type:application/json): Key is URL path + query string
+  + JSON body. Example: '/test?key=value,{"jsonkey":"jsonvalue"}'
+  
+  """
+  full_path = request.full_path
+  if request.method == 'POST':
+    body_object = request.get_json()
+    post_body = json.dumps(body_object, sort_keys=True)
+    cache_key = f'{full_path},{post_body}'
+  else:
+    cache_key = full_path
+  return cache_key

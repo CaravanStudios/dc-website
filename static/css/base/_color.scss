@@ -51,7 +51,9 @@ $dc-primary-color: #467bd5;
   // Following vars are overwritten in custom dc modes
   --dc-primary: #{$dc-primary-color};
   --link-color: #0b57d0;
+  --loading-background: #f8f9fa;
   --footer-bg: #f5f9fe;
+  --footer-background: #f5f9fe;
   // Theming of styled components
   --button-text-color: var(--link-color);
   --button-background-color: var(--gm-3-white);

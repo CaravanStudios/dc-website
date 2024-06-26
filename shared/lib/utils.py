@@ -18,8 +18,9 @@ import os
 import re
 from typing import List, Set
 
-import shared.lib.constants as constants
 from markupsafe import escape
+
+import shared.lib.constants as constants
 
 
 def _add_to_set_from_list(set_strings: Set[str],
@@ -145,3 +146,8 @@ def escape_strings(data):
     # Otherwise, assume data is of a type that doesn't need escaping and just
     # return it as is.
     return data
+
+
+def is_test_env() -> bool:
+  env = os.environ.get('FLASK_ENV', '')
+  return env in ['integration_test', 'test', 'webdriver']

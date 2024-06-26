@@ -15,12 +15,13 @@
 # Interface for variable detection
 #
 
-import time
 from typing import Dict, List
 
 import server.lib.nl.common.counters as ctr
 from server.lib.nl.detection import query_util
-from server.lib.nl.detection import rerank
+from server.lib.nl.detection.types import DetectionArgs
+import server.lib.nl.detection.utils as dutils
+from server.lib.nl.explore import params
 from server.services import datacommons as dc
 from shared.lib import constants
 import shared.lib.detected_variables as vars
@@ -46,13 +47,8 @@ _MAX_MULTIVAR_PARTS = 2
 # calls the NL Server and returns a dict with both single-SV and multi-SV
 # (if relevant) detections.  For more details see create_sv_detection().
 #
-def detect_vars(orig_query: str,
-                index_type: str,
-                counters: ctr.Counters,
-                debug_logs: Dict,
-                threshold: float = constants.SV_SCORE_DEFAULT_THRESHOLD,
-                rerank_fn: rerank.RerankCallable = None,
-                skip_topics: bool = False) -> vars.VarDetectionResult:
+def detect_vars(orig_query: str, debug_logs: Dict,
+                dargs: DetectionArgs) -> vars.VarDetectionResult:
   #
   # 1. Prepare all the queries for embeddings lookup, both mono-var and multi-var.
   #
@@ -61,8 +57,14 @@ def detect_vars(orig_query: str,
   # the potential areas for improvement. For now, this removal blanket removes
   # any words in ALL_STOP_WORDS which includes contained_in places and their
   # plurals and any other query attribution/classification trigger words.
-  query_monovar = shared_utils.remove_stop_words(orig_query,
-                                                 query_util.ALL_STOP_WORDS)
+  if dargs.include_stop_words:
+    query_monovar = orig_query
+  else:
+    query_monovar = shared_utils.remove_stop_words(orig_query,
+                                                   query_util.ALL_STOP_WORDS)
+  if not query_monovar.strip():
+    # Empty user query!  Return empty results
+    return dutils.empty_var_detection_result()
   all_queries = [query_monovar]
 
   # Try to detect multiple SVs.  Use the original query so that
@@ -75,33 +77,31 @@ def detect_vars(orig_query: str,
   # 2. Lookup embeddings with both single-var and multi-var queries.
   #
   # Make API call to the NL models/embeddings server.
-  query2results = dc.nl_search_vars(all_queries, index_type, skip_topics)
+  skip_topics = dargs.mode == params.QueryMode.TOOLFORMER_RIG
+  resp = dc.nl_search_vars(all_queries, dargs.embeddings_index_types,
+                           skip_topics, dargs.reranker)
   query2results = {
-      q: vars.dict_to_var_candidates(r) for q, r in query2results.items()
+      q: vars.dict_to_var_candidates(r) for q, r in resp['queryResults'].items()
   }
+  debug_logs.update(resp.get('debugLogs', {}))
+  model_threshold = resp['scoreThreshold']
 
   #
   # 3. Prepare result candidates.
   #
+  # If caller had an overriden threshold bump, apply that.
+  threshold_override = params.sv_threshold_override(dargs)
+  multi_var_threshold = dutils.compute_final_threshold(model_threshold,
+                                                       threshold_override)
   result_monovar = query2results[query_monovar]
   result_multivar = _prepare_multivar_candidates(multi_querysets, query2results,
-                                                 threshold)
+                                                 multi_var_threshold)
 
-  #
-  # 4. Maybe, rerank
-  # TODO:  Consider reranking for multi-var too.
-  #
-  if rerank_fn:
-    start = time.time()
-    result_monovar = rerank.rerank(rerank_fn, query_monovar, result_monovar,
-                                   debug_logs)
-    counters.timeit('var_reranking', start)
-
-  debug_logs["sv_detection_query_index_type"] = index_type
   debug_logs["sv_detection_query_input"] = orig_query
   debug_logs["sv_detection_query_stop_words_removal"] = query_monovar
   return vars.VarDetectionResult(single_var=result_monovar,
-                                 multi_var=result_multivar)
+                                 multi_var=result_multivar,
+                                 model_threshold=model_threshold)
 
 
 #

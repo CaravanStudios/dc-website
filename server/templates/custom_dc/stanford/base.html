@@ -97,7 +97,7 @@
                   <a class="dropdown-item" href="{{ url_for('disasters.disaster_dashboard') }}">Natural Disaster Dashboard</a>
                   <a class="dropdown-item" href="{{ url_for('place.place') }}">{% trans %}Place Explorer{% endtrans
                     %}</a>
-                  <a class="dropdown-item" href="{{ url_for('browser.browser_main') }}">{% trans %}Graph Browser{%
+                  <a class="dropdown-item" href="{{ url_for('browser.browser_main') }}">{% trans %}Knowledge Graph{%
                     endtrans %}</a>
                   <a class="dropdown-item" href="{{ url_for('tools.timeline') }}">{% trans %}Timelines Explorer{%
                     endtrans %}</a>
@@ -135,7 +135,7 @@
                 <div class="dropdown-menu dropdown-menu-right" aria-labelledby="nav-about-dropdown">
                   <a class="dropdown-item" href="{{ url_for('static.about') }}">{% trans %}About Data Commons{% endtrans
                     %}</a>
-                  <a class="dropdown-item" href="https://docs.datacommons.org/blog.html">{% trans %}Blog{% endtrans
+                  <a class="dropdown-item" href="https://blog.datacommons.org">{% trans %}Blog{% endtrans
                     %}</a>
                   <a class="dropdown-item" href="https://docs.datacommons.org/datasets/">{% trans %}Data Sources{%
                     endtrans %}</a>
@@ -170,7 +170,7 @@
             {# TRANSLATORS: The name of a tool to browse statistics about a place. #}
             <a href="{{ url_for('place.place') }}">{% trans %}Place Explorer{% endtrans %}</a>
             {# TRANSLATORS: The name of a tool to browse the Data Commons knowledge graph. #}
-            <a href="{{ url_for('browser.browser_main') }}">{% trans %}Graph Browser{% endtrans %}</a>
+            <a href="{{ url_for('browser.browser_main') }}">{% trans %}Knowledge Graph{% endtrans %}</a>
             {# TRANSLATORS: The name of a tool to explore timeline charts of statistical variables for places. #}
             <a href="{{ url_for('tools.timeline') }}">{% trans %}Timelines Explorer{% endtrans %}</a>
             {# TRANSLATORS: The name of a tool to explore scatter plots of statistical variables for places. #}
@@ -206,7 +206,7 @@
             {# TRANSLATORS: The label for a link to the project's about page. #}
             <a href="{{ url_for('static.about') }}">{% trans %}About Data Commons{% endtrans %}</a>
             {# TRANSLATORS: The label for a link to the project's blog. #}
-            <a href="https://docs.datacommons.org/blog.html">{% trans %}Blog{% endtrans %}</a>
+            <a href="https://blog.datacommons.org/">{% trans %}Blog{% endtrans %}</a>
             {# TRANSLATORS: The label for a link to data sources included in the Data Commons knowledge graph. #}
             <a href="https://docs.datacommons.org/datasets/">{% trans %}Data Sources{% endtrans %}</a>
             {# TRANSLATORS: The label for a link to instructions about sending feedback. #}

@@ -37,8 +37,8 @@ import server.lib.util as libutil
 import server.services.bigtable as bt
 from server.services.discovery import configure_endpoints_from_ingress
 from server.services.discovery import get_health_check_urls
-import shared.lib.gcp as lib_gcp
-from shared.lib.utils import is_debug_mode
+from shared.lib import gcp as lib_gcp
+from shared.lib import utils as lib_utils
 
 BLOCKLIST_SVG_FILE = "/datacommons/svg/blocklist_svg.json"
 
@@ -162,6 +162,9 @@ def register_routes_common(app):
   from server.routes.place import html as place_html
   app.register_blueprint(place_html.bp)
 
+  from server.routes.dev_place import html as dev_place_html
+  app.register_blueprint(dev_place_html.bp)
+
   from server.routes.ranking import html as ranking_html
   app.register_blueprint(ranking_html.bp)
 
@@ -240,7 +243,7 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
 
   cfg = lib_config.get_config()
 
-  if lib_gcp.in_google_network():
+  if lib_gcp.in_google_network() and not lib_utils.is_test_env():
     client = google.cloud.logging.Client()
     client.setup_logging()
   else:
@@ -252,7 +255,7 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
     )
 
   log_level = logging.WARNING
-  if is_debug_mode():
+  if lib_utils.is_debug_mode():
     log_level = logging.INFO
   logging.getLogger('werkzeug').setLevel(log_level)
 
@@ -266,10 +269,6 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
 
   app.config['NL_ROOT'] = nl_root
   app.config['ENABLE_ADMIN'] = os.environ.get('ENABLE_ADMIN', '') == 'true'
-
-  if os.environ.get('ENABLE_EVAL_TOOL') == 'true':
-    import shared.model.loader as model_loader
-    app.config['VERTEX_AI_MODELS'] = model_loader.load()
 
   lib_cache.cache.init_app(app)
   lib_cache.model_cache.init_app(app)
@@ -410,6 +409,10 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
   else:
     blocklist_svg = ["dc/g/Uncategorized", "oecd/g/OECD"]
   app.config['BLOCKLIST_SVG'] = blocklist_svg
+
+  # Set whether to filter stat vars with low geographic coverage in the
+  # map and scatter tools.
+  app.config['MIN_STAT_VAR_GEO_COVERAGE'] = cfg.MIN_STAT_VAR_GEO_COVERAGE
 
   if not cfg.TEST:
     urls = get_health_check_urls()

@@ -18,13 +18,13 @@ from typing import cast, List
 
 from flask import current_app
 
-import server.lib.explore.params as params
-import server.lib.explore.topic as topic
 from server.lib.nl.common import utils
 from server.lib.nl.common.utterance import FulfillmentResult
 from server.lib.nl.common.utterance import QueryType
 from server.lib.nl.common.utterance import Utterance
 import server.lib.nl.detection.types as dtypes
+import server.lib.nl.explore.params as params
+import server.lib.nl.explore.topic as topic
 from server.lib.nl.fulfillment import base
 from server.lib.nl.fulfillment import event
 from server.lib.nl.fulfillment import filter_with_dual_vars
@@ -39,11 +39,11 @@ import server.lib.nl.fulfillment.utils as futils
 #
 # Populate chart candidates in the utterance.
 #
-def fulfill(uttr: Utterance, explore_mode: bool = False) -> PopulateState:
+def fulfill(uttr: Utterance) -> PopulateState:
   # Construct a common PopulateState
   state = PopulateState(uttr=uttr)
 
-  if not _perform_strict_mode_checks(uttr):
+  if not _perform_classification_checks(uttr):
     return state
 
   # IMPORTANT: Do this as the very first thing before
@@ -61,7 +61,6 @@ def fulfill(uttr: Utterance, explore_mode: bool = False) -> PopulateState:
   state.time_delta_types = utils.get_time_delta_types(uttr)
   state.quantity = utils.get_quantity(uttr)
   state.event_types = utils.get_event_types(uttr)
-  state.explore_mode = explore_mode
   state.single_date = utils.get_single_date(uttr)
   # Only one of single date or date range should be specified, so only get date
   # range if there is no single date.
@@ -132,6 +131,10 @@ def fulfill(uttr: Utterance, explore_mode: bool = False) -> PopulateState:
   if params.is_special_dc(state.uttr.insight_ctx):
     _prune_non_country_special_dc_vars(state)
 
+  # No fallback for toolformer mode!
+  if params.is_toolformer_mode(state.uttr.mode):
+    state.disable_fallback = True
+
   # Call populate_charts.
   if not base.populate_charts(state):
     # If that failed, try OVERVIEW.
@@ -153,7 +156,7 @@ def fulfill(uttr: Utterance, explore_mode: bool = False) -> PopulateState:
 
 
 # Returns False if the checks fail (aka should not proceed).
-def _perform_strict_mode_checks(uttr: Utterance) -> bool:
+def _perform_classification_checks(uttr: Utterance) -> bool:
   detailed_action = utils.get_action_verbs(uttr)
   if detailed_action:
     uttr.counters.info('fulfill_detailed_action_querytypes', detailed_action)
@@ -177,21 +180,10 @@ def _produce_query_types(uttr: Utterance) -> List[QueryType]:
   # The remaining query types require places to be set
   if not uttr.places:
     return query_types
+
   query_types.append(handlers.first_query_type(uttr))
   while query_types[-1] != None:
     query_types.append(handlers.next_query_type(query_types))
-
-  if params.is_special_dc(uttr.insight_ctx):
-    # Prune out query_types that aren't relevant.
-    pruned_types = []
-    for qt in query_types:
-      # Superlative introduces custom SVs not relevant for SDG.
-      # And we don't do event maps for SDG.
-      if qt not in [QueryType.EVENT, QueryType.SUPERLATIVE]:
-        pruned_types.append(qt)
-    if not pruned_types:
-      pruned_types.append(QueryType.BASIC)
-    query_types = pruned_types
 
   return query_types
 

@@ -23,7 +23,7 @@ import * as d3 from "d3";
 import _ from "lodash";
 import React from "react";
 
-import { NL_SOURCE_REPLACEMENTS } from "../constants/app/nl_interface_constants";
+import { NL_SOURCE_REPLACEMENTS } from "../constants/app/explore_constants";
 import { SELF_PLACE_DCID_PLACEHOLDER } from "../constants/subject_page_constants";
 import { CSV_FIELD_DELIMITER } from "../constants/tile_constants";
 import {
@@ -35,10 +35,11 @@ import { PointApiResponse, SeriesApiResponse } from "../shared/stat_types";
 import { getStatsVarLabel } from "../shared/stats_var_labels";
 import { NamedTypedPlace, StatVarSpec } from "../shared/types";
 import { getCappedStatVarDate, urlToDisplayText } from "../shared/util";
+import { TileMetadataModal } from "../tools/shared/tile_metadata_modal";
 import { getMatchingObservation } from "../tools/shared_util";
 import { EventTypeSpec, TileConfig } from "../types/subject_page_proto_types";
 import { stringifyFn } from "./axios";
-import { isNlInterface } from "./nl_interface_utils";
+import { isNlInterface } from "./explore_utils";
 import { getUnit } from "./stat_metadata_utils";
 
 const DEFAULT_PC_SCALING = 100;
@@ -332,12 +333,16 @@ export function getTileEventTypeSpecs(
 }
 
 /**
- * Gets the JSX element for displaying a list of sources.
+ * Gets the JSX element for displaying a list of sources and stat vars.
  */
 export function TileSources(props: {
   sources: Set<string> | string[];
+  // If available, the stat vars to link to.
+  statVarSpecs?: StatVarSpec[];
+  containerRef?: React.RefObject<HTMLElement>;
+  apiRoot?: string;
 }): JSX.Element {
-  const { sources } = props;
+  const { sources, statVarSpecs } = props;
   if (!sources) {
     return null;
   }
@@ -375,6 +380,17 @@ export function TileSources(props: {
   return (
     <div className="sources" {...{ part: "source" }}>
       Source: {sourcesJsx}
+      {statVarSpecs && statVarSpecs.length > 0 && (
+        <>
+          {" "}
+          •{" "}
+          <TileMetadataModal
+            apiRoot={props.apiRoot}
+            containerRef={props.containerRef}
+            statVarSpecs={statVarSpecs}
+          ></TileMetadataModal>
+        </>
+      )}
     </div>
   );
 }
