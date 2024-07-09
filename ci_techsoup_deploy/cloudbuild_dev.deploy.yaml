@@ -20,8 +20,8 @@ steps:
       - -c
       - |
         set -e
-        git clone https://github.com/datacommonsorg/mixer.git
-        git clone https://github.com/datacommonsorg/import.git
+        git submodule foreach git pull origin master
+        git submodule update --init --recursive
 
         # Bundle container with website, esp and mixer.
         docker build -f build/web_compose/Dockerfile \
@@ -44,6 +44,7 @@ steps:
         --region us-central1 \
         --allow-unauthenticated \
         --memory 8G \
+        --cpu 2 \
         --platform managed
     waitFor: ["push-web-compose"]
 
