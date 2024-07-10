@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 
 from server.app_env import _base
 from server.app_env import local
@@ -25,6 +26,7 @@ class Config(_base.Config):
   SHOW_DISASTER = False
   USE_LLM = False
   USE_MEMCACHE = False
+  ENABLE_MODEL = os.environ.get('ENABLE_MODEL')
 
 
 class LocalConfig(Config, local.Config):

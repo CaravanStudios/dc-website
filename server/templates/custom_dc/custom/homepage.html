@@ -18,6 +18,7 @@ limitations under the License.
 
 {% set main_id = 'homepage' %}
 {% set page_id = 'page-homepage' %}
+{% set show_search = config.get('ENABLE_MODEL') %}
 {% block head %}
 <link rel="stylesheet" href={{url_for('static', filename='css/homepage.min.css' , t=config['VERSION'])}}>
 <script src={{url_for('static', filename='homepage_custom_dc.js' , t=config['VERSION'])}} async></script>
@@ -25,10 +26,12 @@ limitations under the License.
 {% endblock %}
 
 {% block content %}
+{% if show_search == 'true'-%}
 <section id="homepage-top">
     <div id="search-container" class="container">
     </div>
 </section>
+{%- endif %}
 <section class="container">
     <div class="homepage-header"></div>
 </section>
