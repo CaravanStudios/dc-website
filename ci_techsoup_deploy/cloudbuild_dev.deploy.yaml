@@ -45,7 +45,8 @@ steps:
         --allow-unauthenticated \
         --memory 8G \
         --cpu 2 \
-        --platform managed
+        --platform managed \
+        --update-env-vars=[WEBSITE_HASH=:${SHORT_SHA}]
     waitFor: ["push-web-compose"]
 
 #  - id: update version
