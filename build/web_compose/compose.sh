@@ -52,10 +52,10 @@ if [[ $DEBUG == "true" ]] then
 else
     if [[ $ENABLE_MODEL == "true" ]] then
         echo "Starting NL Server."
-        gunicorn --log-level info --preload --timeout 1000 --bind 0.0.0.0:6060 -w 1 nl_app:app &
+        gunicorn --log-level ${GUNICORN_LOG_LEVEL-info} --preload --timeout ${GUNICORN_TIMEOUT-1000} --bind 0.0.0.0:6060 -w ${GUNICORN_WORKERS_NL_APP-1} --threads ${GUNICORN_THREADS_NL_APP-1} nl_app:app &
     fi
     echo "Starting Website Server."
-    gunicorn --log-level info --preload --timeout 1000 --bind 0.0.0.0:7070 -w 4 web_app:app &
+    gunicorn --log-level ${GUNICORN_LOG_LEVEL-info} --preload --timeout ${GUNICORN_TIMEOUT-1000} --bind 0.0.0.0:7070 -w ${GUNICORN_WORKERS_WEB_APP-4} --threads ${GUNICORN_THREADS_WEB_APP-1}  web_app:app &
 fi
 
 # Wait for any process to exit

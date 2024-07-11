@@ -25,3 +25,11 @@ ADMIN_SECRET=
 ENABLE_MODEL=true
 # The name of the parent directory for custom CSS, JS, HTML and image files.
 FLASK_ENV=custom
+
+# (Optional) web_compose gunicorn envs to be able to tuneup docker run if is need it e.g. Cloud Run
+GUNICORN_LOG_LEVEL=
+GUNICORN_TIMEOUT=1000
+GUNICORN_WORKERS_WEB_APP=
+GUNICORN_THREADS_WEB_APP=
+GUNICORN_WORKERS_NL_APP=
+GUNICORN_THREADS_NL_APP=
