@@ -231,6 +231,7 @@ _SV_PARTIAL_DCID_NO_PC = [
     "LmpGestationalAge_",
     "who/",
     "WHO/",
+    "Aid_Worker_Security_Incidents_",
 ]
 
 
