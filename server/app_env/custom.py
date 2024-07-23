@@ -27,6 +27,7 @@ class Config(_base.Config):
   USE_LLM = False
   USE_MEMCACHE = False
   ENABLE_MODEL = os.environ.get('ENABLE_MODEL')
+  LOG_QUERY = os.environ.get('LOG_QUERY')
 
 
 class LocalConfig(Config, local.Config):
