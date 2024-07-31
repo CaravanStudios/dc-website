@@ -17,67 +17,172 @@
 /* Component to record overall feedback for a query */
 
 import React, { FormEvent, useContext, useEffect, useState } from "react";
-import { Button } from "reactstrap";
 
 import { loadSpinner, removeSpinner } from "../../shared/util";
 import {
-  QUERY_OVERALL_FEEDBACK_KEY,
+  FEEDBACK_PANE_ID,
+  OVERALL_QUESTIONS_OPTION_HAS_MISSING,
+  OVERALL_QUESTIONS_OPTION_NONE_MISSING,
+  QUERY_OVERALL_ANS_KEY,
+  QUERY_OVERALL_FEEDBACK_COL,
   QUERY_OVERALL_OPTION_HALLUCINATION,
+  QUERY_OVERALL_OPTION_IRRELEVANT,
   QUERY_OVERALL_OPTION_OK,
+  QUERY_OVERALL_OPTION_RELEVANT,
+  QUERY_OVERALL_OPTION_SOMEWHAT_RELEVANT,
+  QUERY_OVERALL_QUESTIONS_KEY,
 } from "./constants";
 import { AppContext, SessionContext } from "./context";
-import { getField, getPath, saveToSheet, setField } from "./data_store";
-import { EvalList } from "./eval_list";
-import { FeedbackNavigation } from "./feedback_navigation";
+import { getAllFields, getPath, saveToSheet, setFields } from "./data_store";
+import { FeedbackWrapper } from "./feedback_wrapper";
 import { OneQuestion } from "./one_question";
-import { TablePane } from "./table_pane";
-import { EvalType } from "./types";
+import { EvalType, FeedbackStage } from "./types";
 
-const LOADING_CONTAINER_ID = "form-container";
-const RESPONSE_OPTIONS = {
-  [QUERY_OVERALL_OPTION_HALLUCINATION]: "Found factual inaccuracies",
-  [QUERY_OVERALL_OPTION_OK]: "No obvious factual inaccuracies",
+// object to hold information about a question
+interface QuestionConfig {
+  title: string;
+  questions: {
+    firestoreKey: string;
+    question: string;
+    responseOptions: Record<string, string>;
+  }[];
+}
+
+// Dictionary of feedback stage -> eval type -> question config
+const QUESTION_CONFIG: Record<string, Record<string, QuestionConfig>> = {
+  [FeedbackStage.OVERALL_QUESTIONS]: {
+    [EvalType.RAG]: {
+      questions: [
+        {
+          firestoreKey: QUERY_OVERALL_QUESTIONS_KEY,
+          question:
+            "Do the generated questions seem sufficient to answer the query?",
+          responseOptions: {
+            [OVERALL_QUESTIONS_OPTION_HAS_MISSING]: "Missing obvious questions",
+            [OVERALL_QUESTIONS_OPTION_NONE_MISSING]:
+              "No obvious questions missing",
+          },
+        },
+      ],
+      title: "QUESTIONS EVALUATION",
+    },
+  },
+  [FeedbackStage.OVERALL_ANS]: {
+    [EvalType.RIG]: {
+      questions: [
+        {
+          firestoreKey: QUERY_OVERALL_ANS_KEY,
+          question: "How is the overall answer?",
+          responseOptions: {
+            [QUERY_OVERALL_OPTION_HALLUCINATION]: "Found factual inaccuracies",
+            [QUERY_OVERALL_OPTION_OK]: "No obvious factual inaccuracies",
+          },
+        },
+      ],
+      title: "OVERALL EVALUATION",
+    },
+    [EvalType.RAG]: {
+      questions: [
+        {
+          firestoreKey: QUERY_OVERALL_ANS_KEY,
+          question: "How well does the LLM answer the user query??",
+          responseOptions: {
+            [QUERY_OVERALL_OPTION_IRRELEVANT]: "Does not answer the query",
+            [QUERY_OVERALL_OPTION_SOMEWHAT_RELEVANT]:
+              "Partially answers the query",
+            [QUERY_OVERALL_OPTION_RELEVANT]: "Fully answers the query",
+          },
+        },
+      ],
+      title: "OVERALL EVALUATION",
+    },
+  },
 };
+
+// Get sheets column to use for a given firestore key
+function getSheetsCol(evalType: EvalType, firestoreKey: string): string {
+  // Only for RIG eval, the sheets column is different from the firestore key
+  if (evalType === EvalType.RIG && firestoreKey === QUERY_OVERALL_ANS_KEY) {
+    return QUERY_OVERALL_FEEDBACK_COL;
+  }
+  return firestoreKey;
+}
+
+// Gets an empty response object
+function getEmptyResponse(
+  evalType: EvalType,
+  feedbackStage: FeedbackStage
+): Record<string, string> {
+  const emptyResponse = {};
+  const questionConfigs = QUESTION_CONFIG[feedbackStage][evalType].questions;
+  questionConfigs.forEach((config) => {
+    emptyResponse[config.firestoreKey] = "";
+  });
+  return emptyResponse;
+}
 
 export function OverallFeedback(): JSX.Element {
   const { doc, sheetId, userEmail, evalType } = useContext(AppContext);
-  const { sessionQueryId, sessionCallId } = useContext(SessionContext);
-  const [response, setResponse] = useState<string>("");
+  const { sessionQueryId, sessionCallId, feedbackStage } =
+    useContext(SessionContext);
+  // the key is the firestoreKey for the question and value is the response
+  const [response, setResponse] = useState<Record<string, string>>(null);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(null);
 
   useEffect(() => {
-    loadSpinner(LOADING_CONTAINER_ID);
-    getField(getPath(sheetId, sessionQueryId), QUERY_OVERALL_FEEDBACK_KEY)
+    loadSpinner(FEEDBACK_PANE_ID);
+    let subscribed = true;
+    getAllFields(getPath(sheetId, sessionQueryId))
       .then((data) => {
-        if (data) {
-          setResponse(data.toString());
-          setIsSubmitted(true);
-        } else {
-          setResponse("");
-          setIsSubmitted(false);
-        }
+        if (!subscribed) return;
+        const newResponse = getEmptyResponse(evalType, feedbackStage);
+        let newIsSubmitted = true;
+        Object.keys(newResponse).forEach((key) => {
+          if (!(key in data)) {
+            newIsSubmitted = false;
+            return;
+          }
+          newResponse[key] = data[key];
+        });
+        setResponse(newResponse);
+        setIsSubmitted(newIsSubmitted);
       })
-      .finally(() => removeSpinner(LOADING_CONTAINER_ID));
-  }, [sheetId, sessionQueryId, sessionCallId]);
+      .finally(() => removeSpinner(FEEDBACK_PANE_ID));
+    return () => void (subscribed = false);
+  }, [sheetId, sessionQueryId, sessionCallId, feedbackStage]);
 
   const checkAndSubmit = async (): Promise<boolean> => {
     if (isSubmitted) {
       return Promise.resolve(true);
     }
-    loadSpinner(LOADING_CONTAINER_ID);
+    const numEmptyResponses = Object.values(response).filter(
+      (val) => val === ""
+    ).length;
+    if (numEmptyResponses > 0) {
+      // If there are some empty responses and some answered, alert user to fill
+      // out all fields
+      if (numEmptyResponses < Object.keys(response).length) {
+        alert("Please fill in all fields");
+        return Promise.resolve(false);
+      }
+      // If all responses are empty, allow user to move on, but don't save the
+      // answer.
+      return Promise.resolve(true);
+    }
+    loadSpinner(FEEDBACK_PANE_ID);
+    const sheetsResponse = {};
+    Object.keys(response).forEach((responseKey) => {
+      sheetsResponse[getSheetsCol(evalType, responseKey)] =
+        response[responseKey];
+    });
     return Promise.all([
-      setField(
-        getPath(sheetId, sessionQueryId),
-        QUERY_OVERALL_FEEDBACK_KEY,
-        response
-      ),
+      setFields(getPath(sheetId, sessionQueryId), response),
       saveToSheet(
         userEmail,
         doc,
         sessionQueryId,
         sessionCallId,
-        null,
-        response
+        sheetsResponse
       ),
     ])
       .then(() => {
@@ -88,53 +193,50 @@ export function OverallFeedback(): JSX.Element {
         return false;
       })
       .finally(() => {
-        removeSpinner(LOADING_CONTAINER_ID);
+        removeSpinner(FEEDBACK_PANE_ID);
       });
   };
 
   const handleChange = (event: FormEvent<HTMLInputElement>) => {
-    const { value } = event.target as HTMLInputElement;
-    setResponse(value);
+    const { name, value } = event.target as HTMLInputElement;
+    setResponse((prevState) => {
+      return { ...prevState, [name]: value };
+    });
   };
 
   const enableReeval = () => {
-    setResponse("");
+    setResponse(getEmptyResponse(evalType, feedbackStage));
     setIsSubmitted(false);
   };
 
+  if (response === null) {
+    return null;
+  }
+
+  const questionConfig = QUESTION_CONFIG[feedbackStage][evalType];
+
   return (
-    <>
-      <div className="button-section">
-        <Button className="reeval-button" onClick={enableReeval}>
-          <div>
-            <span className="material-icons-outlined">redo</span>
-            Re-Eval
+    <FeedbackWrapper onReEval={enableReeval} checkAndSubmit={checkAndSubmit}>
+      <form>
+        <fieldset>
+          <div className="question-section">
+            <div className="title">{questionConfig.title}</div>
+            {questionConfig.questions.map((question) => {
+              return (
+                <OneQuestion
+                  key={question.firestoreKey}
+                  question={question.question}
+                  name={question.firestoreKey}
+                  options={question.responseOptions}
+                  handleChange={handleChange}
+                  responseField={response[question.firestoreKey]}
+                  disabled={isSubmitted}
+                />
+              );
+            })}
           </div>
-        </Button>
-        <EvalList />
-      </div>
-      <div id={LOADING_CONTAINER_ID}>
-        <form>
-          <fieldset>
-            <div className="question-section">
-              <div className="title">OVERALL EVALUATION</div>
-              <OneQuestion
-                question="How is the overall answer?"
-                name="overall"
-                options={RESPONSE_OPTIONS}
-                handleChange={handleChange}
-                responseField={response}
-                disabled={isSubmitted}
-              />
-            </div>
-          </fieldset>
-        </form>
-      </div>
-      {evalType === EvalType.RAG && <TablePane />}
-      <FeedbackNavigation checkAndSubmit={checkAndSubmit} />
-      <div id="page-screen" className="screen">
-        <div id="spinner"></div>
-      </div>
-    </>
+        </fieldset>
+      </form>
+    </FeedbackWrapper>
   );
 }

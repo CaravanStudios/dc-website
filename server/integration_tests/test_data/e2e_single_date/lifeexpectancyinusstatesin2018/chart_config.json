@@ -161,7 +161,7 @@
                     "statVarKey": [
                       "Count_Death_2018_1151455814"
                     ],
-                    "title": "Deaths in United States",
+                    "title": "Number of Deaths in United States",
                     "type": "LINE"
                   }
                 ]
@@ -169,18 +169,18 @@
               {
                 "tiles": [
                   {
-                    "description": "Deaths in United States",
+                    "description": "Number of Deaths in United States",
                     "statVarKey": [
                       "Count_Death_2018"
                     ],
-                    "title": "Deaths in United States",
+                    "title": "Number of Deaths in United States",
                     "type": "HIGHLIGHT"
                   }
                 ]
               }
             ],
             "denom": "Count_Person",
-            "title": "Deaths"
+            "title": "Number of Deaths"
           },
           {
             "columns": [
@@ -435,7 +435,7 @@
                 ]
               }
             ],
-            "footnote": "Includes data from the following sources: united nations Inter-agency group for child mortality estimation (UN IGME), 2023.",
+            "footnote": "Includes data from the following sources: united nations Inter-agency group for child mortality estimation (UN IGME), 2024.",
             "title": "Neonatal Mortality Rate"
           },
           {
@@ -711,13 +711,13 @@
         "statVarSpec": {
           "Count_Death_2018": {
             "date": "2018",
-            "name": "Deaths",
+            "name": "Number of Deaths",
             "statVar": "Count_Death"
           },
           "Count_Death_2018_1151455814": {
             "date": "2018",
             "facetId": "1151455814",
-            "name": "Deaths",
+            "name": "Number of Deaths",
             "statVar": "Count_Death"
           },
           "Count_Death_AbnormalNotClassfied_Female_2018": {

@@ -14,18 +14,50 @@
  * limitations under the License.
  */
 
+import { GoogleSpreadsheet } from "google-spreadsheet";
 import _ from "lodash";
 
-import { EvalType, FeedbackStage } from "./types";
+import {
+  ANSWER_COL,
+  CALL_ID_COL,
+  DC_CALL_SHEET,
+  DC_METADATA_SHEET,
+  DC_QUESTION_COL,
+  DC_RESPONSE_COL,
+  DC_STAT_COL,
+  FEEDBACK_STAGE_LIST,
+  LLM_STAT_COL,
+  METADATA_KEY_COL,
+  METADATA_KEY_TYPE,
+  METADATA_VAL_COL,
+  QA_SHEET,
+  QUERY_COL,
+  QUERY_ID_COL,
+  USER_COL,
+} from "./constants";
+import {
+  AllQuery,
+  DcCalls,
+  DocInfo,
+  EvalType,
+  FeedbackStage,
+  Query,
+} from "./types";
 
 const HTTP_PATTERN = /https:\/\/[^\s]+/g;
 const LONG_SPACES = "&nbsp;&nbsp;&nbsp;&nbsp;";
 const TABLE_DIVIDER_PATTERN = /[--][-]+/g;
 // table headers are sometimes country names so there can be symbols used like
 // in "Côte d'Ivoire".
-const TABLE_HEADER_TEXT_PATTERN = /[\w'ô[\]ãéí\s]+/g;
+const TABLE_HEADER_TEXT_PATTERN = /[\w'ô[\]ãéí\s°()%:-\\,\\₂]+/g;
 
-export const processText = (text: string): string => {
+// Map from sheet name to column name to column index
+type HeaderInfo = Record<string, Record<string, number>>;
+
+export const processText = (text: string, calls?: DcCalls): string => {
+  if (!text) {
+    return "";
+  }
   // If "Answer" is in the text, remove it
   let processedText = text.replace("Answer:", "");
   // If "FOOTNOTES" in all caps is in the text, convert it to lower case
@@ -45,10 +77,19 @@ export const processText = (text: string): string => {
       } else {
         llmStat = parts[0];
       }
+
       let innerHtml = "";
-      innerHtml += `<span class="dc-stat">${dcStat || LONG_SPACES}</span>`;
       innerHtml += `<span class="llm-stat">${llmStat || LONG_SPACES}</span>`;
-      return `<span class="annotation annotation-${callId}">${innerHtml}</span>`;
+      let annotationClasses = `annotation annotation-${callId}`;
+
+      const hasDcStat = dcStat?.trim().length > 0;
+      if (hasDcStat) {
+        innerHtml += getTooltipHtml(dcStat, callId, calls);
+      } else {
+        annotationClasses += " annotation-no-dc-stat";
+      }
+
+      return `<span class="${annotationClasses}">${innerHtml}</span>`;
     }
   );
   // Replace each link with the desired HTML format
@@ -58,7 +99,28 @@ export const processText = (text: string): string => {
   );
 };
 
+function getTooltipHtml(
+  dcStat: string,
+  callId: string,
+  calls?: DcCalls
+): string {
+  let dcResponse = "";
+  if (calls) {
+    dcResponse = calls[callId]?.dcResponse || "";
+  }
+  return (
+    `<span class="dc-stat-tooltip">` +
+    `<span class="dc-stat-tooltip-value">${dcStat}</span>` +
+    `<br/>` +
+    `<span class="dc-stat-tooltip-label">${dcResponse}</span>` +
+    `</span>`
+  );
+}
+
 export function processTableText(text: string): string {
+  if (!text) {
+    return "";
+  }
   // Get a copy of the table header
   const tableHeader = _.cloneDeep(text).split("\n", 1)[0];
   // Replace all the text in the header with "-" to create the table divider
@@ -71,9 +133,125 @@ export function processTableText(text: string): string {
 
 // Get the first feedback stage to show for an eval type
 export function getFirstFeedbackStage(evalType: EvalType): FeedbackStage {
-  if (evalType === EvalType.RAG) {
-    return FeedbackStage.CALLS;
-  } else {
-    return FeedbackStage.OVERALL;
+  return FEEDBACK_STAGE_LIST[evalType][0];
+}
+
+async function getHeader(doc: GoogleSpreadsheet): Promise<HeaderInfo> {
+  const result: HeaderInfo = {};
+  for (const sheetName of [QA_SHEET, DC_CALL_SHEET, DC_METADATA_SHEET]) {
+    result[sheetName] = {};
+    const sheet = doc.sheetsByTitle[sheetName];
+    await sheet.loadHeaderRow();
+    for (let i = 0; i < sheet.headerValues.length; i++) {
+      const colName = sheet.headerValues[i];
+      result[sheetName][colName] = i;
+    }
   }
+  return result;
+}
+
+function getQueries(
+  doc: GoogleSpreadsheet,
+  allHeader: HeaderInfo
+): Promise<AllQuery> {
+  const sheet = doc.sheetsByTitle[QA_SHEET];
+  const header = allHeader[QA_SHEET];
+  const numRows = sheet.rowCount;
+  return sheet.loadCells().then(() => {
+    const allQuery: Record<number, Query> = {};
+    for (let i = 1; i < numRows; i++) {
+      const id = Number(sheet.getCell(i, header[QUERY_ID_COL]).value);
+      // Skip row if query ID is 0 or NaN.
+      if (!id) continue;
+      allQuery[id] = {
+        id,
+        rowIndex: i,
+        text: String(sheet.getCell(i, header[QUERY_COL]).value),
+        user: String(sheet.getCell(i, header[USER_COL]).value),
+      };
+    }
+    return allQuery;
+  });
+}
+
+function getCalls(
+  doc: GoogleSpreadsheet,
+  allHeader: HeaderInfo
+): Promise<Record<number, DcCalls>> {
+  const sheet = doc.sheetsByTitle[DC_CALL_SHEET];
+  const header = allHeader[DC_CALL_SHEET];
+  const numRows = sheet.rowCount;
+  return sheet.loadCells().then(() => {
+    const calls: Record<number, DcCalls> = {};
+    for (let i = 1; i < numRows; i++) {
+      const queryId = Number(sheet.getCell(i, header[QUERY_ID_COL]).value);
+      const callId = Number(sheet.getCell(i, header[CALL_ID_COL]).value);
+      if (!calls[queryId]) {
+        calls[queryId] = {};
+      }
+      calls[queryId][callId] = {
+        rowIndex: i,
+        question:
+          sheet.getCell(i, header[DC_QUESTION_COL]).formattedValue || "",
+        llmStat: sheet.getCell(i, header[LLM_STAT_COL]).formattedValue || "",
+        dcResponse:
+          sheet.getCell(i, header[DC_RESPONSE_COL]).formattedValue || "",
+        dcStat: sheet.getCell(i, header[DC_STAT_COL]).formattedValue || "",
+      };
+    }
+    return calls;
+  });
+}
+
+function getEvalType(
+  doc: GoogleSpreadsheet,
+  allHeader: HeaderInfo
+): Promise<EvalType> {
+  const sheet = doc.sheetsByTitle[DC_METADATA_SHEET];
+  const header = allHeader[DC_METADATA_SHEET];
+  const numRows = sheet.rowCount;
+  return sheet.loadCells().then(() => {
+    for (let i = 1; i < numRows; i++) {
+      const metadataKey = sheet.getCell(i, header[METADATA_KEY_COL]).value;
+      if (metadataKey === METADATA_KEY_TYPE) {
+        const evalType = sheet.getCell(i, header[METADATA_VAL_COL])
+          .value as EvalType;
+        return evalType;
+      }
+    }
+    alert(
+      "Could not find an eval type in the sheet metadata. Please update the sheet and try again."
+    );
+  });
+}
+
+// Promise to get all the information about a google spreadsheet doc
+export function getDocInfo(doc: GoogleSpreadsheet): Promise<DocInfo> {
+  return getHeader(doc)
+    .then((allHeader) => {
+      return Promise.all([
+        getQueries(doc, allHeader),
+        getCalls(doc, allHeader),
+        getEvalType(doc, allHeader),
+      ]);
+    })
+    .then(([allQuery, allCall, evalType]) => {
+      return { doc, allQuery, allCall, evalType };
+    });
+}
+
+// Promise to get the answer for a query from the query and answer sheet in a
+// google spreadsheet.
+export function getAnswerFromQueryAndAnswerSheet(
+  doc: GoogleSpreadsheet,
+  query: Query
+): Promise<string> {
+  const sheet = doc.sheetsByTitle[QA_SHEET];
+  const rowIdx = query.rowIndex;
+  return sheet.getRows({ offset: rowIdx - 1, limit: 1 }).then((rows) => {
+    const row = rows[0];
+    if (row) {
+      return row.get(ANSWER_COL) || "";
+    }
+  });
 }

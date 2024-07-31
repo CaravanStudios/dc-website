@@ -21,9 +21,9 @@ import { Button, Input, Modal } from "reactstrap";
 
 import {
   NEW_QUERY_CALL_ID,
-  QUERY_FALSE_CLAIMS_FEEDBACK_KEY,
-  QUERY_OVERALL_FEEDBACK_KEY,
-  QUERY_TOTAL_CLAIMS_FEEDBACK_KEY,
+  QUERY_OVERALL_ANS_KEY,
+  QUERY_OVERALL_QUESTIONS_KEY,
+  RAG_CLAIM_KEYS,
 } from "./constants";
 import { AppContext, SessionContext } from "./context";
 import { getAllFields, getCallCount, getPath } from "./data_store";
@@ -39,6 +39,8 @@ export function EvalList(): JSX.Element {
   const [userEvalsOnly, setUserEvalsOnly] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [queryCompletionStatus, setQueryCompletionStatus] = useState({});
+
+  const toggleModal = () => void setModalOpen(!modalOpen);
 
   const orderedQueries: Query[] = Object.keys(allQuery)
     .sort((a, b) => {
@@ -62,20 +64,16 @@ export function EvalList(): JSX.Element {
           const calls = allCall[query.id] || {};
           let completed = callCountResults[i] === Object.keys(calls).length;
           // If no overall feedback value, set completed to false
-          if (!queryFeedbackResults[i][QUERY_OVERALL_FEEDBACK_KEY]) {
+          if (!queryFeedbackResults[i][QUERY_OVERALL_ANS_KEY]) {
             completed = false;
           }
-          // For RAG eval type, also check that total and false claims are
-          // completed
+          // For RAG eval type, also check that additional feedback is completed
           if (evalType === EvalType.RAG) {
             [
-              QUERY_TOTAL_CLAIMS_FEEDBACK_KEY,
-              QUERY_FALSE_CLAIMS_FEEDBACK_KEY,
-            ].forEach((key) => {
-              if (
-                queryFeedbackResults[i][key] !== "0" &&
-                !queryFeedbackResults[i][key]
-              ) {
+              ...Object.values(RAG_CLAIM_KEYS),
+              QUERY_OVERALL_QUESTIONS_KEY,
+            ].forEach((countKey) => {
+              if (!(countKey in queryFeedbackResults[i])) {
                 completed = false;
               }
             });
@@ -97,7 +95,11 @@ export function EvalList(): JSX.Element {
           Evaluation list
         </div>
       </Button>
-      <Modal isOpen={modalOpen} className="eval-list-modal">
+      <Modal
+        className="eval-list-modal"
+        isOpen={modalOpen}
+        toggle={toggleModal}
+      >
         <div className="header">
           <div className="title">Choose a query to start evaluating from</div>
           <div className="subtitle">

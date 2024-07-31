@@ -20,19 +20,10 @@ import _ from "lodash";
 import React, { useContext } from "react";
 import { Button } from "reactstrap";
 
-import { NEW_QUERY_CALL_ID } from "./constants";
+import { FEEDBACK_STAGE_LIST, NEW_QUERY_CALL_ID } from "./constants";
 import { AppContext, SessionContext } from "./context";
-import { EvalType, FeedbackStage } from "./types";
+import { FeedbackStage } from "./types";
 import { getFirstFeedbackStage } from "./util";
-
-const FEEDBACK_STAGE_LIST: Record<EvalType, FeedbackStage[]> = {
-  [EvalType.RIG]: [FeedbackStage.OVERALL, FeedbackStage.CALLS],
-  [EvalType.RAG]: [
-    FeedbackStage.CALLS,
-    FeedbackStage.OVERALL,
-    FeedbackStage.RAG_ANS,
-  ],
-};
 
 enum ButtonType {
   PREV_QUERY = "PREV_QUERY",
@@ -92,7 +83,7 @@ function isEndOfStage(
   numCalls: number
 ): boolean {
   if (feedbackStage === FeedbackStage.CALLS) {
-    return sessionCallId === numCalls;
+    return sessionCallId >= numCalls;
   }
   // feedback stages besides CALLS only have one page
   return true;
@@ -101,10 +92,11 @@ function isEndOfStage(
 // Whether or not we are at the first page of a feedback stage
 function isStartOfStage(
   feedbackStage: FeedbackStage,
-  sessionCallId: number
+  sessionCallId: number,
+  numCalls: number
 ): boolean {
   if (feedbackStage === FeedbackStage.CALLS) {
-    return sessionCallId === NEW_QUERY_CALL_ID;
+    return sessionCallId === NEW_QUERY_CALL_ID || numCalls < sessionCallId;
   }
   // feedback stages besides CALLS only have one page
   return true;
@@ -164,8 +156,8 @@ export function FeedbackNavigation(
       while (!(targetId in userQuery)) {
         targetId -= 1;
       }
-      setSessionQueryId(targetId);
       setFeedbackStage(getFirstFeedbackStage(evalType));
+      setSessionQueryId(targetId);
       setSessionCallId(NEW_QUERY_CALL_ID);
     }
   };
@@ -198,8 +190,8 @@ export function FeedbackNavigation(
       while (!(targetId in userQuery)) {
         targetId += 1;
       }
-      setSessionQueryId(targetId);
       setFeedbackStage(getFirstFeedbackStage(evalType));
+      setSessionQueryId(targetId);
       setSessionCallId(NEW_QUERY_CALL_ID);
     }
   };
@@ -208,6 +200,12 @@ export function FeedbackNavigation(
     if (await props.checkAndSubmit()) {
       setFeedbackStage(feedbackStageList[currStageIdx + 1]);
       setSessionCallId(NEW_QUERY_CALL_ID);
+    }
+  };
+
+  const finish = async () => {
+    if (await props.checkAndSubmit()) {
+      alert("All evaluations completed.");
     }
   };
 
@@ -228,7 +226,7 @@ export function FeedbackNavigation(
   }
 
   function getPrevButtonType(): ButtonType {
-    if (isStartOfStage(feedbackStage, sessionCallId)) {
+    if (isStartOfStage(feedbackStage, sessionCallId, numCalls)) {
       if (currStageIdx > 0) {
         return ButtonType.PREV_EVAL_STAGE;
       }
@@ -255,7 +253,7 @@ export function FeedbackNavigation(
       case ButtonType.NEXT_EVAL_STAGE:
         return nextEvalStage;
       case ButtonType.FINISH:
-        return props.checkAndSubmit;
+        return finish;
       default:
         return _.noop;
     }
@@ -265,12 +263,15 @@ export function FeedbackNavigation(
 
   return (
     <div className="feedback-nav-section">
-      {feedbackStage === FeedbackStage.CALLS && (
-        <div className="item-num">
-          <span className="highlight">{sessionCallId}</span>
-          <span className="regular">/ {numCalls} ITEMS IN THIS QUERY</span>
-        </div>
-      )}
+      <div className="nav-info">
+        {feedbackStage === FeedbackStage.CALLS && (
+          <div>
+            <span className="highlight">{sessionCallId}</span>
+            <span className="regular">/ {numCalls} ITEMS IN THIS QUERY</span>
+          </div>
+        )}
+        <div className="regular">EVAL STAGE {currStageIdx + 1}</div>
+      </div>
       <div className="nav-buttons">
         {prevButtonType !== ButtonType.EMPTY && (
           <Button
