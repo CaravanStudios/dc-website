@@ -14,7 +14,7 @@
 
 steps:
   - id: push-web-compose
-    name: gcr.io/cloud-builders/docker
+    name: "gcr.io/cloud-builders/docker"
     entrypoint: "bash"
     args:
       - -c
@@ -46,7 +46,7 @@ steps:
         --memory 8G \
         --cpu 2 \
         --platform managed \
-        --update-env-vars "WEBSITE_HASH=${SHORT_SHA},LOG_QUERY=${LOG_QUERY-False}"
+        --update-env-vars "WEBSITE_HASH=${SHORT_SHA}"
     waitFor: ["push-web-compose"]
 
 #  - id: update version

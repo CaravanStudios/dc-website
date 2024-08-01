@@ -11,9 +11,10 @@ services:
       - .env.list
     environment:
       - DEBUG=true
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json
     volumes:
-      - ./custom_dc/sample:/userdata
+      - ./tmp/custom_dc/import_data:/userdata
       - ./server:/workspace/server
       - ./static:/workspace/static
       - ./import:/workspace/import
-      - ./.tmp/sqliteData:/sqlite
+      - $HOME/.config/gcloud/application_default_credentials.json:/gcp/creds.json:ro
