@@ -154,8 +154,10 @@ export function isSelectionComplete(
   if (_.isEmpty(statVars)) {
     return false;
   }
-
-  return !(visTypeConfig.numSv && statVars.length < visTypeConfig.numSv);
+  if (visTypeConfig.numSv && statVars.length < visTypeConfig.numSv) {
+    return false;
+  }
+  return true;
 }
 
 interface InputInfo {

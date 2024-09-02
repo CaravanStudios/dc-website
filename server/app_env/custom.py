@@ -22,8 +22,9 @@ class Config(_base.Config):
   NAME = "Data Commons for Civil Society"
   OVERRIDE_CSS_PATH = '/custom_dc/custom/overrides.css'
   LOGO_PATH = "/custom_dc/custom/techsoup-logo.svg"
+  GA_ACCOUNT="G-57CW917C6X"
   MIN_STAT_VAR_GEO_COVERAGE = 1
-  SHOW_DISASTER = False
+  SHOW_DISASTER = True
   USE_LLM = False
   USE_MEMCACHE = False
   ENABLE_MODEL = os.environ.get('ENABLE_MODEL')

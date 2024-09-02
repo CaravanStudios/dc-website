@@ -34,6 +34,21 @@ content - main page content
 <html lang={{ locale }} id={{ page_id }}>
 
 <head>
+    {% if GA_ACCOUNT %}
+    {#
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ GA_ACCOUNT }}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+
+        gtag('js', new Date());
+        gtag('config', '{{ GA_ACCOUNT }}', {client_storage: 'none', anonymize_ip: true});
+    </script>
+    #}
+    {% endif %}
     {# Google Tag Manager #}
     <script>(function (w, d, s, l, i) {
         w[l] = w[l] || [];
@@ -147,11 +162,14 @@ content - main page content
         <div id="sub-footer">
             <div id class="container">
                 <div style="width:60%; line-height: 1.2">
-                    <p style="margin-bottom:0.2rem;font-size: 1rem">Powered by Google's <a href="https://www.datacommons.org" target="_blank">Data Commons</a></p>
-                    <p style="margin-bottom:0.2rem;font-size: 1rem">Data accessed through this website is intended for non-commercial use only (<a
-                            href="https://creativecommons.org/licenses/by-nc/4.0/deed.en"
-                            target="_blank">CC BY-NC 4.0</a>)</p>
-                    <p style="margin-bottom:0.2rem;font-size: 1rem">It is provided free of charge and in the spirit of open data.</p>
+                    <p style="margin-bottom:0.2rem;font-size: 1rem">Powered by Google's <a
+                            href="https://www.datacommons.org" target="_blank">Data Commons</a></p>
+                    <p style="margin-bottom:0.2rem;font-size: 1rem">Data accessed through this website is intended for
+                        non-commercial use only (<a
+                                href="https://creativecommons.org/licenses/by-nc/4.0/deed.en"
+                                target="_blank">CC BY-NC 4.0</a>)</p>
+                    <p style="margin-bottom:0.2rem;font-size: 1rem">It is provided free of charge and in the spirit of
+                        open data.</p>
                 </div>
                 <div class="sub-footer-links">
                     {% block subfooter_extra %}{% endblock %}
