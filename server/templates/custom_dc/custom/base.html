@@ -35,19 +35,13 @@ content - main page content
 
 <head>
     {% if GA_ACCOUNT %}
-    {#
-    <script async src="https://www.googletagmanager.com/gtag/js?id={{ GA_ACCOUNT }}"></script>
-    <script>
+        <script async src="https://www.googletagmanager.com/gtag/js?id={{ GA_ACCOUNT }}"></script>
+        <script>
         window.dataLayer = window.dataLayer || [];
-
-        function gtag() {
-            dataLayer.push(arguments);
-        }
-
+        function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-        gtag('config', '{{ GA_ACCOUNT }}', {client_storage: 'none', anonymize_ip: true});
-    </script>
-    #}
+        gtag('config', '{{ GA_ACCOUNT }}');
+        </script>
     {% endif %}
     {# Google Tag Manager #}
     <script>(function (w, d, s, l, i) {
@@ -57,7 +51,7 @@ content - main page content
                 new Date().getTime(), event: 'gtm.js'
         });
         var f = d.getElementsByTagName(s)[0],
-            j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : '';
+            j = d.createElement(s), dl = l !== 'dataLayer' ? '&l=' + l : '';
         j.async = true;
         j.src =
             'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
@@ -154,6 +148,7 @@ content - main page content
     </header>
 
     <main id="{{ main_id }}" class="main-content">
+        <pre>GA_ACCOUNT: {{GA_ACCOUNT}}</pre>
         {% block content %}
         {% endblock %}
     </main>
