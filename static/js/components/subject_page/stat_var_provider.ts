@@ -34,7 +34,7 @@ export class StatVarProvider {
     key: string,
     options?: { blockDenom?: string; blockDate?: string }
   ): StatVarSpec {
-    if (!(key in this._statVarSpecMap)) {
+    if (!key || !(key in this._statVarSpecMap)) {
       return null;
     }
     const spec = _.cloneDeep(this._statVarSpecMap[key]);
