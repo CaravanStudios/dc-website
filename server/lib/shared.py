@@ -231,9 +231,16 @@ _SV_PARTIAL_DCID_NO_PC = [
     "LmpGestationalAge_",
     "who/",
     "WHO/",
-    "Aid_Worker_Security_Incidents_",
 ]
 
+#Start  TechSoup changes
+_TECHSOUP_ADDITIONAL_SV_PARTIAL_DCID_NO_PC = [
+  "Aid_Worker_Security_Incidents_",
+  "CHR_"
+]
+
+_SV_PARTIAL_DCID_NO_PC += _TECHSOUP_ADDITIONAL_SV_PARTIAL_DCID_NO_PC
+#End  TechSoup changes
 
 def is_percapita_relevant(sv_dcid: str, nopc_svs: Set[str]) -> bool:
   """Get whether or not a stat var is per capita relevant.

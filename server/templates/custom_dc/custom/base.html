@@ -37,10 +37,14 @@ content - main page content
     {% if GA_ACCOUNT %}
         <script async src="https://www.googletagmanager.com/gtag/js?id={{ GA_ACCOUNT }}"></script>
         <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', '{{ GA_ACCOUNT }}');
+            window.dataLayer = window.dataLayer || [];
+
+            function gtag() {
+                dataLayer.push(arguments);
+            }
+
+            gtag('js', new Date());
+            gtag('config', '{{ GA_ACCOUNT }}');
         </script>
     {% endif %}
     {# Google Tag Manager #}
@@ -67,12 +71,16 @@ content - main page content
           rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined&display=block">
 
-    <link rel="stylesheet" href={{url_for('static', filename='css/static.min.css' , t=config['VERSION'])}}>
+    <link rel="stylesheet" href={{ url_for('static', filename='css/static.min.css' , t=config['VERSION']) }}>
     {% block head %}
     {% endblock %}
     {% if OVERRIDE_CSS_PATH %}
-    <link href="{{ OVERRIDE_CSS_PATH }}" rel="stylesheet">
+        <link href="{{ OVERRIDE_CSS_PATH }}" rel="stylesheet">
     {% endif %}
+    <script>
+        globalThis.isCustomDC = {{ config['CUSTOM']|int }};
+        globalThis.STAT_VAR_HIERARCHY_CONFIG = {{ config['STAT_VAR_HIERARCHY_CONFIG'] | tojson }};
+    </script>
 </head>
 
 <body>
@@ -89,21 +97,21 @@ content - main page content
             <div class="container-fluid">
                 <div class="navbar-brand">
                     {% if LOGO_PATH %}
-                    <div id="main-header-logo">
-                        <a href="{{ url_for('static.homepage') }}">
-                            <img src="{{ LOGO_PATH }}"/>
-                        </a>
-                    </div>
+                        <div id="main-header-logo">
+                            <a href="{{ url_for('static.homepage') }}">
+                                <img src="{{ LOGO_PATH }}"/>
+                            </a>
+                        </div>
                     {% endif %}
                     <a id="brand-name-link" href="{{ url_for('static.homepage') }}">
                         <div id="brand-name-title">Data Commons</div>
                         <div id="brand-name-subtitle">for Civil Society</div>
                     </a>
                     {% if subpage_title %}
-                    <span>
+                        <span>
               {% if subpage_url %}<a href="{{ subpage_url }}">{% endif %}
-                {{ subpage_title }}
-                {% if subpage_url %}</a>{% endif %}
+                            {{ subpage_title }}
+                            {% if subpage_url %}</a>{% endif %}
             </span>
                     {% endif %}
                     </a>
@@ -123,13 +131,13 @@ content - main page content
                                 <a class="dropdown-item" href="{{ url_for('place.place') }}">
                                     Place Explorer
                                 </a>
-                                <a class="dropdown-item" href="{{ url_for('tools.visualization')}}#visType=map">
+                                <a class="dropdown-item" href="{{ url_for('tools.visualization') }}#visType=map">
                                     Map Explorer
                                 </a>
-                                <a class="dropdown-item" href="{{ url_for('tools.visualization')}}#visType=scatter">
+                                <a class="dropdown-item" href="{{ url_for('tools.visualization') }}#visType=scatter">
                                     Scatter Plot Explorer
                                 </a>
-                                <a class="dropdown-item" href="{{ url_for('tools.visualization')}}#visType=timeline">
+                                <a class="dropdown-item" href="{{ url_for('tools.visualization') }}#visType=timeline">
                                     Timelines Explorer
                                 </a>
                             </div>
