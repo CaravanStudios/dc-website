@@ -34,19 +34,22 @@ content - main page content
 <html lang={{ locale }} id={{ page_id }}>
 
 <head>
-    {% if GA_ACCOUNT %}
-        <script async src="https://www.googletagmanager.com/gtag/js?id={{ GA_ACCOUNT }}"></script>
-        <script>
-            window.dataLayer = window.dataLayer || [];
+  {# Enable Google Analytics with cookieless tracking. #}
+  {% if GOOGLE_ANALYTICS_TAG_ID %}
+  <script async src="https://www.googletagmanager.com/gtag/js?id={{ GOOGLE_ANALYTICS_TAG_ID }}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', '{{ GOOGLE_ANALYTICS_TAG_ID }}', {
+      client_storage: 'none',
+      anonymize_ip: true,
+      {{ ("place_category: '{}',"|safe).format(place_category) if place_category is defined else "" }}
+      {{ ("send_page_view: false,"|safe) if manual_ga_pageview else "" }}
+    });
+  </script>
+  {% endif %}
 
-            function gtag() {
-                dataLayer.push(arguments);
-            }
-
-            gtag('js', new Date());
-            gtag('config', '{{ GA_ACCOUNT }}');
-        </script>
-    {% endif %}
     {# Google Tag Manager #}
     <script>(function (w, d, s, l, i) {
         w[l] = w[l] || [];
@@ -63,20 +66,18 @@ content - main page content
     })(window, document, 'script', 'dataLayer', 'GTM-T94G38VL');</script>
     {# End Google Tag Manager #}
 
-    <title>Data Commons for Civil Society</title>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <link rel="icon" href="/custom_dc/custom/favicon.png" type="image/png">
-    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;600&family=Roboto&display=swap"
-          rel="stylesheet">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined&display=block">
-
-    <link rel="stylesheet" href={{ url_for('static', filename='css/static.min.css' , t=config['VERSION']) }}>
-    {% block head %}
-    {% endblock %}
-    {% if OVERRIDE_CSS_PATH %}
-        <link href="{{ OVERRIDE_CSS_PATH }}" rel="stylesheet">
-    {% endif %}
+  <title>{{ title }} - Custom Data Commons</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;600&family=Roboto&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href={{url_for('static', filename='css/static.min.css', t=config['VERSION'])}}>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined">
+  {% block head %}
+  {% endblock %}
+  {% if OVERRIDE_CSS_PATH %}
+  <link href="{{ OVERRIDE_CSS_PATH }}" rel="stylesheet">
+  {% endif %}
     <script>
         globalThis.isCustomDC = {{ config['CUSTOM']|int }};
         globalThis.STAT_VAR_HIERARCHY_CONFIG = {{ config['STAT_VAR_HIERARCHY_CONFIG'] | tojson }};
