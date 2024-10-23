@@ -1,0 +1,215 @@
+{#-
+Copyright 2023 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-#}
+
+
+{#-
+Required variables:
+title: page title
+main_id: DOM Element ID for the main content block
+page_id: DOM Element ID for the html element
+
+Optional variables:
+locale: string, value for html lang attr
+subpage_title: string, if specified, will be displayed in the header next to Data Commons
+
+Blocks to override:
+head - additional head elements
+content - main page content
+-#}
+<!DOCTYPE html>
+
+<html lang={{ locale }} id={{ page_id }}>
+
+<head>
+    {# Enable Google Analytics with cookieless tracking. #}
+    {% if GOOGLE_ANALYTICS_TAG_ID %}
+        <script async src="https://www.googletagmanager.com/gtag/js?id={{ GOOGLE_ANALYTICS_TAG_ID }}"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+
+            function gtag() {
+                dataLayer.push(arguments);
+            }
+
+            gtag('js', new Date());
+            gtag('config', '{{ GOOGLE_ANALYTICS_TAG_ID }}', {
+                client_storage: 'none',
+                anonymize_ip: true,
+                {{ ("place_category: '{}',"|safe).format(place_category) if place_category is defined else "" }}
+                {{ ("send_page_view: false,"|safe) if manual_ga_pageview else "" }}
+            });
+        </script>
+    {% endif %}
+
+    {# Google Tag Manager #}
+    <script>(function (w, d, s, l, i) {
+        w[l] = w[l] || [];
+        w[l].push({
+            'gtm.start':
+                new Date().getTime(), event: 'gtm.js'
+        });
+        var f = d.getElementsByTagName(s)[0],
+            j = d.createElement(s), dl = l !== 'dataLayer' ? '&l=' + l : '';
+        j.async = true;
+        j.src =
+            'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
+        f.parentNode.insertBefore(j, f);
+    })(window, document, 'script', 'dataLayer', 'GTM-T94G38VL');</script>
+    {# End Google Tag Manager #}
+
+    <title>{{ title }}{{ ' - ' if title else '' }}Data Commons for Civil Society</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="icon" href="/custom_dc/techsoup/images/favicon.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;600&family=Roboto&display=swap"
+          rel="stylesheet">
+    <link rel="stylesheet" href={{ url_for('static', filename='css/core.min.css', t=config['VERSION']) }}>
+    <link rel="stylesheet" href={{ url_for('static', filename='css/static.min.css', t=config['VERSION']) }}>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined">
+    {% block head %}
+    {% endblock %}
+    {% if OVERRIDE_CSS_PATH %}
+        <link href="{{ OVERRIDE_CSS_PATH }}" rel="stylesheet">
+    {% endif %}
+    <script>
+        globalThis.isCustomDC = {{ config['CUSTOM']|int }};
+        globalThis.STAT_VAR_HIERARCHY_CONFIG = {{ config['STAT_VAR_HIERARCHY_CONFIG'] | tojson }};
+    </script>
+</head>
+
+<body>
+{# Google Tag Manager (noscript) #}
+<noscript>
+    <iframe title="GTM" src="https://www.googletagmanager.com/ns.html?id=GTM-T94G38VL"
+            height="0" width="0" style="display:none;visibility:hidden"></iframe>
+</noscript>
+{# End Google Tag Manager (noscript) #}
+
+<div id="main">
+    <header id="main-header">
+        <div id="main-header-container">
+            <nav class="navbar navbar-dark navbar-expand-lg col" id="main-nav">
+                <div class="container-fluid">
+                    <div class="navbar-brand">
+                        {% if LOGO_PATH %}
+                            <div id="main-header-logo">
+                                <a href="{{ url_for('static.homepage') }}">
+                                    <img src="{{ LOGO_PATH }}" alt="Techsoup logo"/>
+                                </a>
+                            </div>
+                        {% endif %}
+                        <a id="brand-name-link" href="{{ url_for('static.homepage') }}">
+                            <div id="brand-name-title">Data Commons</div>
+                            <div id="brand-name-subtitle">for Civil Society</div>
+                        </a>
+                        {% if subpage_title %}
+                            <span>
+                            {% if subpage_url %}<a href="{{ subpage_url }}">{% endif %}
+                                {{ subpage_title }}
+                                {% if subpage_url %}</a>{% endif %}
+                        </span>
+                        {% endif %}
+                    </div>
+                    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#dc-main-nav">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    {% if main_id == 'homepage' and page_id == 'page-homepage' %}
+                        <div id="search-container" class="container"></div>
+                    {% endif %}
+                    <div class="collapse navbar-collapse justify-content-md-end" id="dc-main-nav">
+                        <ul class="navbar-nav float-md-right align-items-center">
+                            <li class="nav-item dropdown">
+                                <button id="nav-explore-dropdown"
+                                        class="nav-link dropdown-toggle"
+                                        type="button"
+                                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                                        aria-label="Show exploration tools">
+                                    Explore Data
+                                </button>
+                                <div class="dropdown-menu" aria-labelledby="nav-explore-dropdown">
+                                    <a class="dropdown-item" href="{{ url_for('place.place') }}">
+                                        Place Explorer
+                                    </a>
+                                    <a class="dropdown-item" href="{{ url_for('tools.visualization') }}#visType=map">
+                                        Map Explorer
+                                    </a>
+                                    <a class="dropdown-item"
+                                       href="{{ url_for('tools.visualization') }}#visType=scatter">
+                                        Scatter Plot Explorer
+                                    </a>
+                                    <a class="dropdown-item"
+                                       href="{{ url_for('tools.visualization') }}#visType=timeline">
+                                        Timelines Explorer
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a href="{{ url_for('tools.download') }}" id="nav-download"
+                                   class="nav-link-main "><span>Download</span></a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a href="{{ url_for('tools.stat_var') }}" id="nav-stat-var"
+                                   class="nav-link-main "><span>Variables</span></a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main id="{{ main_id }}" class="main-content">
+        {% block content %}
+        {% endblock %}
+    </main>
+    <div id="main-footer-container">
+        <div class="container">
+            <div style="width:60%; line-height: 1.2">
+                <p style="margin-bottom:0.2rem;font-size: 1rem">Powered by Google's <a
+                        href="https://www.datacommons.org" target="_blank">Data Commons</a></p>
+                <p style="margin-bottom:0.2rem;font-size: 1rem">Data accessed through this website is intended
+                    for
+                    non-commercial use only (<a
+                            href="https://creativecommons.org/licenses/by-nc/4.0/deed.en"
+                            target="_blank">CC BY-NC 4.0</a>)</p>
+                <p style="margin-bottom:0.2rem;font-size: 1rem">It is provided free of charge and in the spirit
+                    of
+                    open data.</p>
+            </div>
+            <ul class="footer-links">
+                <li>
+                    <a href="https://www.techsoup.org/termsofuse" target="_blank">Terms of Use ›</a>
+                </li>
+                <li>
+                    <a href="https://www.techsoup.org/privacypolicy" target="_blank">Privacy Policy ›</a>
+                </li>
+                <li>
+                    <a href="mailto:datacommons@techsoup.org">Contact Us ›</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+{# Compile this down (or manually implement). Used only for nav bar so far #}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+        crossorigin="anonymous"></script>
+{% block footer %}
+{% endblock %}
+</body>
+
+</html>

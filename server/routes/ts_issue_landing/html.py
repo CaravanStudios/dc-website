@@ -21,9 +21,9 @@ bp = Blueprint('ts_issue_landing', __name__)
 
 @bp.route('/food-security')
 def food_security():
-    return render_template('custom_dc/custom/issue_landing/foodsecurity.html')
+    return render_template('custom_dc/techsoup/issue_landing/foodsecurity.html')
 
 
 @bp.route('/climate')
 def climate():
-    return render_template('custom_dc/custom/issue_landing/climate.html')
+    return render_template('custom_dc/techsoup/issue_landing/climate.html')

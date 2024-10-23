@@ -44,10 +44,7 @@ const config = {
     ],
     timeline_bulk_download: [__dirname + "/js/tools/timeline/bulk_download.ts"],
     mcf_playground: __dirname + "/js/mcf_playground.js",
-    base: [
-      __dirname + "/js/apps/base/main.ts",
-      __dirname + "/css/core.scss",
-    ],
+    base: [__dirname + "/js/apps/base/main.ts", __dirname + "/css/core.scss"],
     place: [
       __dirname + "/js/place/place.ts",
       __dirname + "/css/place/place_page.scss",
@@ -157,6 +154,10 @@ const config = {
     ],
     homepage_custom_dc: [
       __dirname + "/js/apps/homepage/main_custom_dc.ts",
+      __dirname + "/css/homepage.scss",
+    ],
+    techsoup_homepage_custom_dc: [
+      __dirname + "/js/apps/homepage/techsoup_custom_dc.ts",
       __dirname + "/css/homepage.scss",
     ],
     visualization: [

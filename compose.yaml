@@ -1,10 +1,10 @@
 services:
   web:
-    image: ts-custom-dc-website-compose
+    image: ts-custom-cdc-services
     platform: "linux/amd64"
     build:
       context: .
-      dockerfile: build/web_compose/Dockerfile
+      dockerfile: build/cdc_services/Dockerfile
     ports:
       - "8080:8080"
     env_file:
@@ -13,7 +13,7 @@ services:
       - DEBUG=true
       - GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json
     volumes:
-      - ./tmp/custom_dc/import_data:/userdata
+      - ./tmp/custom_dc:/userdata
       - ./server:/workspace/server
       - ./static:/workspace/static
       - ./import:/workspace/import
