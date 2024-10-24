@@ -41,48 +41,48 @@ steps:
         docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest
     waitFor: ["-"]
 
-  - id: deploy-cdc-services-to-cloud-run
-    name: 'gcr.io/cloud-builders/gcloud'
-    entrypoint: /bin/bash
-    args:
-      - -c
-      - |
-        set -e
-        # Read the image label from the file.
-        image_label=$(cat /workspace/image_label.txt)
-        
-        # Use IFS (Internal Field Separator) to split the string by '-'.
-        IFS='-' read -r WEBSITE_HASH MIXER_HASH  <<< "$image_label"
-        
-        gcloud run deploy datacommons-dev \
-        --image us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest \
-        --region us-central1 \
-        --allow-unauthenticated \
-        --memory 8G \
-        --cpu 2 \
-        --platform managed \
-        --update-env-vars "WEBSITE_HASH=${WEBSITE_HASH},MIXER_HASH=${MIXER_HASH}"
-    waitFor: ["push-cdc-services"]
-
-#  - id: update version
-#    name: "gcr.io/cloud-builders/git"
+#  - id: deploy-cdc-services-to-cloud-run
+#    name: 'gcr.io/cloud-builders/gcloud'
 #    entrypoint: /bin/bash
 #    args:
 #      - -c
 #      - |
 #        set -e
+#        # Read the image label from the file.
+#        image_label=$(cat /workspace/image_label.txt)
 #
-#        git clone https://github.com/CaravanStudios/dc-website /tmp/deployment
-#        cd /tmp/deployment
-#        # Configure Git to create commits with Cloud Build's service account
-#        git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
-#        git checkout $BRANCH_NAME
-#        mkdir -p `dirname website/autopush/commit_hash.txt`
-#        echo $SHORT_SHA > website/autopush/commit_hash.txt
-#        git add website/autopush/commit_hash.txt
-#        git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"
-#        git push origin $BRANCH_NAME
-##    waitFor: ["push-web-compose"]
+#        # Use IFS (Internal Field Separator) to split the string by '-'.
+#        IFS='-' read -r WEBSITE_HASH MIXER_HASH  <<< "$image_label"
+#
+#        gcloud run deploy datacommons-dev \
+#        --image us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest \
+#        --region us-central1 \
+#        --allow-unauthenticated \
+#        --memory 8G \
+#        --cpu 2 \
+#        --platform managed \
+#        --update-env-vars "WEBSITE_HASH=${WEBSITE_HASH},MIXER_HASH=${MIXER_HASH}"
+#    waitFor: ["push-cdc-services"]
+
+  - id: update version
+    name: "gcr.io/cloud-builders/git"
+    entrypoint: /bin/bash
+    args:
+      - -c
+      - |
+        set -e
+
+        git clone https://github.com/CaravanStudios/dc-website /tmp/deployment
+        cd /tmp/deployment
+        # Configure Git to create commits with Cloud Build's service account
+        git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
+        git checkout $BRANCH_NAME
+        mkdir -p `dirname website/autopush/commit_hash.txt`
+        echo $SHORT_SHA > website/autopush/commit_hash.txt
+        git add website/autopush/commit_hash.txt
+        git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"
+        git push origin $BRANCH_NAME
+    waitFor: ["push-cdc-services"]
 #    waitFor: ["-"]
 
 timeout: 3600s
