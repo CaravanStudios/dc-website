@@ -68,6 +68,8 @@ steps:
   - id: setup-git-ssh-auth
     name: 'gcr.io/cloud-builders/git'
     entrypoint: 'bash'
+    env:
+      - GIT_SSH_KEY
     args:
       - '-c'
       - |
