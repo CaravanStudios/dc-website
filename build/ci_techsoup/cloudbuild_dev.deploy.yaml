@@ -81,6 +81,8 @@ steps:
   - id: update-version
     name: "gcr.io/cloud-builders/git"
     entrypoint: /bin/bash
+    env:
+      - GIT_SSH_KEY
     args:
       - -c
       - |
