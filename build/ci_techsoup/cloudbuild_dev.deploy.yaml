@@ -98,7 +98,7 @@ steps:
         git add website/autopush/commit_hash.txt
         git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"
         git push origin $BRANCH_NAME
-    waitFor: ["push-cdc-services"]
+    waitFor: ["setup-git-ssh-auth"]
 
 timeout: 3600s
 options:
