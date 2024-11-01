@@ -13,33 +13,33 @@
 # limitations under the License.
 
 steps:
-  - id: push-cdc-services
-    name: "gcr.io/cloud-builders/docker"
-    entrypoint: "bash"
-    args:
-      - -c
-      - |
-        set -e
-        git submodule foreach git pull origin master
-        git submodule update --init --recursive
-        
-        mixer_rev="$(git rev-parse --short HEAD:mixer)"
-        import_rev="$(git rev-parse --short HEAD:import)"
-        image_label="${SHORT_SHA}-${mixer_rev}-${import_rev}"
-        
-
-        # Save the image label to a file for later use.
-        echo "Image label: ${image_label}"
-        echo $image_label > /workspace/image_label.txt
-
-        # Bundle container with website, esp and mixer.
-        docker build -f build/cdc_services/Dockerfile \
-          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:${image_label} \
-          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest \
-          .
-        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:${image_label}
-        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest
-    waitFor: ["-"]
+#  - id: push-cdc-services
+#    name: "gcr.io/cloud-builders/docker"
+#    entrypoint: "bash"
+#    args:
+#      - -c
+#      - |
+#        set -e
+#        git submodule foreach git pull origin master
+#        git submodule update --init --recursive
+#
+#        mixer_rev="$(git rev-parse --short HEAD:mixer)"
+#        import_rev="$(git rev-parse --short HEAD:import)"
+#        image_label="${SHORT_SHA}-${mixer_rev}-${import_rev}"
+#
+#
+#        # Save the image label to a file for later use.
+#        echo "Image label: ${image_label}"
+#        echo $image_label > /workspace/image_label.txt
+#
+#        # Bundle container with website, esp and mixer.
+#        docker build -f build/cdc_services/Dockerfile \
+#          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:${image_label} \
+#          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest \
+#          .
+#        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:${image_label}
+#        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest
+#    waitFor: ["-"]
 
 #  - id: deploy-cdc-services-to-cloud-run
 #    name: 'gcr.io/cloud-builders/gcloud'
@@ -66,15 +66,15 @@ steps:
 
   # Step 1: Set up SSH authentication
   - id: setup-git-ssh-auth
-    name: 'gcr.io/cloud-builders/git'
-    entrypoint: 'bash'
+    name: "gcr.io/cloud-builders/git"
+    entrypoint: "bash"
     env:
       - GIT_SSH_KEY
     args:
-      - '-c'
+      - -c
       - |
         mkdir -p ~/.ssh
-        echo "${GIT_SSH_KEY}" > ~/.ssh/id_rsa
+        echo "$GIT_SSH_KEY" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan github.com >> ~/.ssh/known_hosts
         git config --global user.email "you@example.com"
@@ -82,9 +82,7 @@ steps:
 
   - id: update-version
     name: "gcr.io/cloud-builders/git"
-    entrypoint: /bin/bash
-    env:
-      - GIT_SSH_KEY
+    entrypoint: "bash"
     args:
       - -c
       - |
@@ -110,4 +108,4 @@ options:
 availableSecrets:
   secretManager:
     - versionName: projects/74723227826/secrets/GIT_SSH_KEY/versions/latest
-      env: 'GIT_SSH_KEY'
+      env: "GIT_SSH_KEY"
