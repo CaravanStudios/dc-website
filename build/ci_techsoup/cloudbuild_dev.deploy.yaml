@@ -63,6 +63,7 @@ steps:
 #        --platform managed \
 #        --update-env-vars "WEBSITE_HASH=${WEBSITE_HASH},MIXER_HASH=${MIXER_HASH}"
 #    waitFor: ["push-cdc-services"]
+
   # Step 1: Set up SSH authentication
   - id: setup-git-ssh-auth
     name: 'gcr.io/cloud-builders/git'
@@ -96,13 +97,13 @@ steps:
         git commit -m "Deployed website to autopush at commit https://github.com/CaravanStudios/dc-website/commit/$SHORT_SHA"
         git push origin $BRANCH_NAME
     waitFor: ["push-cdc-services"]
-#    waitFor: ["-"]
 
 timeout: 3600s
-
 options:
   logging: CLOUD_LOGGING_ONLY
   machineType: "E2_HIGHCPU_32"
 
-secrets:
-- secretEnv: ['GIT_SSH_KEY']
+availableSecrets:
+  secretManager:
+    - versionName: projects/74723227826/secrets/GIT_SSH_KEY/versions/latest
+      env: 'GIT_SSH_KEY'
