@@ -69,12 +69,12 @@ steps:
     name: "gcr.io/cloud-builders/git"
     entrypoint: "bash"
     env:
-      - GIT_SSH_KEY
+      - _GIT_SSH_KEY
     args:
       - -c
       - |
         mkdir -p ~/.ssh
-        echo "$GIT_SSH_KEY" > ~/.ssh/id_rsa
+        echo "$_GIT_SSH_KEY" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan github.com >> ~/.ssh/known_hosts
         git config --global user.email "you@example.com"
@@ -108,4 +108,4 @@ options:
 availableSecrets:
   secretManager:
     - versionName: projects/74723227826/secrets/GIT_SSH_KEY/versions/latest
-      env: "GIT_SSH_KEY"
+      env: "_GIT_SSH_KEY"
