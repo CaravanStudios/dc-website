@@ -68,18 +68,16 @@ steps:
   - id: setup-git-ssh-auth
     name: "gcr.io/cloud-builders/git"
     entrypoint: "bash"
-    env:
-      - GIT_SSH_KEY
     args:
       - -c
       - |
         mkdir -p ~/.ssh
-        echo "$GIT_SSH_KEY" > ~/.ssh/id_rsa
+        echo "$$GIT_SSH_KEY" > ~/.ssh/id_rsa
         chmod 400 ~/.ssh/id_rsa
         ssh-keyscan github.com >> ~/.ssh/known_hosts
         git config --global user.email "cloudBuild_service@techsoup.org"
         git config --global user.name "Cloud Service"
-
+    secretEnv: ["GIT_SSH_KEY"]
   - id: update-version
     name: "gcr.io/cloud-builders/git"
     entrypoint: "bash"
