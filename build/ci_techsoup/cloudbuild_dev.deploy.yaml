@@ -13,58 +13,58 @@
 # limitations under the License.
 
 steps:
-#  - id: push-cdc-services
-#    name: "gcr.io/cloud-builders/docker"
-#    entrypoint: "bash"
-#    args:
-#      - -c
-#      - |
-#        set -e
-#        git submodule foreach git pull origin master
-#        git submodule update --init --recursive
-#
-#        mixer_rev="$(git rev-parse --short HEAD:mixer)"
-#        import_rev="$(git rev-parse --short HEAD:import)"
-#        image_label="${SHORT_SHA}-${mixer_rev}-${import_rev}"
-#
-#
-#        # Save the image label to a file for later use.
-#        echo "Image label: ${image_label}"
-#        echo $image_label > /workspace/image_label.txt
-#
-#        # Bundle container with website, esp and mixer.
-#        docker build -f build/cdc_services/Dockerfile \
-#          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:${image_label} \
-#          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest \
-#          .
-#        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:${image_label}
-#        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest
-#    waitFor: ["-"]
+  - id: push-cdc-services
+    name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        set -e
+        git submodule foreach git pull origin master
+        git submodule update --init --recursive
 
-#  - id: deploy-cdc-services-to-cloud-run
-#    name: 'gcr.io/cloud-builders/gcloud'
-#    entrypoint: /bin/bash
-#    args:
-#      - -c
-#      - |
-#        set -e
-#        # Read the image label from the file.
-#        image_label=$(cat /workspace/image_label.txt)
-#
-#        # Use IFS (Internal Field Separator) to split the string by '-'.
-#        IFS='-' read -r WEBSITE_HASH MIXER_HASH  <<< "$image_label"
-#
-#        gcloud run deploy datacommons-dev \
-#        --image us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest \
-#        --region us-central1 \
-#        --allow-unauthenticated \
-#        --memory 8G \
-#        --cpu 2 \
-#        --platform managed \
-#        --update-env-vars "WEBSITE_HASH=${WEBSITE_HASH},MIXER_HASH=${MIXER_HASH}"
-#    waitFor: ["push-cdc-services"]
+        mixer_rev="$(git rev-parse --short HEAD:mixer)"
+        import_rev="$(git rev-parse --short HEAD:import)"
+        image_label="${SHORT_SHA}-${mixer_rev}-${import_rev}"
 
-  # Step 1: Set up SSH authentication - https://cloud.google.com/build/docs/access-github-from-build
+
+        # Save the image label to a file for later use.
+        echo "Image label: ${image_label}"
+        echo $image_label > /workspace/image_label.txt
+
+        # Bundle container with website, esp and mixer.
+        docker build -f build/cdc_services/Dockerfile \
+          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:${image_label} \
+          --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest \
+          .
+        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:${image_label}
+        docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest
+    waitFor: ["-"]
+
+  - id: deploy-cdc-services-to-cloud-run
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: /bin/bash
+    args:
+      - -c
+      - |
+        set -e
+        # Read the image label from the file.
+        image_label=$(cat /workspace/image_label.txt)
+
+        # Use IFS (Internal Field Separator) to split the string by '-'.
+        IFS='-' read -r WEBSITE_HASH MIXER_HASH  <<< "$image_label"
+
+        gcloud run deploy datacommons-dev \
+        --image us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest \
+        --region us-central1 \
+        --allow-unauthenticated \
+        --memory 8G \
+        --cpu 2 \
+        --platform managed \
+        --update-env-vars "WEBSITE_HASH=${WEBSITE_HASH},MIXER_HASH=${MIXER_HASH}"
+    waitFor: ["push-cdc-services"]
+
+  # Set up SSH authentication - https://cloud.google.com/build/docs/access-github-from-build
   - id: setup-git-ssh-auth
     name: "gcr.io/cloud-builders/git"
     secretEnv: ["GIT_SSH_KEY"]
@@ -74,12 +74,14 @@ steps:
       - |
         echo "$$GIT_SSH_KEY" > /root/.ssh/id_rsa
         chmod 400 /root/.ssh/id_rsa
-        ssh-keyscan github.com >> /root/.ssh/known_hosts
+        cp known_hosts.github /root/.ssh/known_hosts
         git config --global user.email "cloudBuild_service@techsoup.org"
         git config --global user.name "Cloud Service"
     volumes:
       - name: 'ssh'
         path: /root/.ssh
+    waitFor: ["deploy-cdc-services-to-cloud-run"]
+
   - id: update-version
     name: "gcr.io/cloud-builders/git"
     entrypoint: "bash"
