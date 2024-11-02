@@ -64,7 +64,7 @@ steps:
 #        --update-env-vars "WEBSITE_HASH=${WEBSITE_HASH},MIXER_HASH=${MIXER_HASH}"
 #    waitFor: ["push-cdc-services"]
 
-  # Step 1: Set up SSH authentication
+  # Step 1: Set up SSH authentication - https://cloud.google.com/build/docs/access-github-from-build
   - id: setup-git-ssh-auth
     name: "gcr.io/cloud-builders/git"
     secretEnv: ["GIT_SSH_KEY"]
@@ -72,9 +72,8 @@ steps:
     args:
       - -c
       - |
-        mkdir -p ~/.ssh
         echo "$$GIT_SSH_KEY" > /root/.ssh/id_rsa
-        chmod 400 ~/.ssh/id_rsa
+        chmod 400 /root/.ssh/id_rsa
         ssh-keyscan github.com >> /root/.ssh/known_hosts
         git config --global user.email "cloudBuild_service@techsoup.org"
         git config --global user.name "Cloud Service"
