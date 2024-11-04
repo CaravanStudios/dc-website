@@ -7,3 +7,4 @@
 [submodule "packages/dc-home-reboot"]
 	path = packages/dc-home-reboot
 	url = git@github.com:CaravanStudios/dc-homepage-reboot.git
+	branch = master
