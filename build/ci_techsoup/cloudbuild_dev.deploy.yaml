@@ -13,6 +13,24 @@
 # limitations under the License.
 
 steps:
+  # Set up SSH authentication - https://cloud.google.com/build/docs/access-github-from-build
+  - id: setup-git-ssh-auth
+    name: "gcr.io/cloud-builders/git"
+    secretEnv: [ "GIT_SSH_KEY" ]
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        echo "$$GIT_SSH_KEY" > /root/.ssh/id_rsa
+        chmod 400 /root/.ssh/id_rsa
+        ssh-keyscan github.com >> /root/.ssh/known_hosts
+        git config --global user.email "cloudBuild_service@techsoup.org"
+        git config --global user.name "Cloud Service"
+    volumes:
+      - name: 'ssh'
+        path: /root/.ssh
+    waitFor: [ "-" ]
+
   - id: push-cdc-services
     name: "gcr.io/cloud-builders/docker"
     entrypoint: "bash"
@@ -39,7 +57,10 @@ steps:
           .
         docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:${image_label}
         docker push us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest
-    waitFor: ["-"]
+    volumes:
+      - name: 'ssh'
+        path: /root/.ssh
+    waitFor: ["setup-git-ssh-auth"]
 
   - id: deploy-cdc-services-to-cloud-run
     name: 'gcr.io/cloud-builders/gcloud'
@@ -64,24 +85,6 @@ steps:
         --update-env-vars "WEBSITE_HASH=$$WEBSITE_HASH,MIXER_HASH=$$MIXER_HASH"
     waitFor: ["push-cdc-services"]
 
-  # Set up SSH authentication - https://cloud.google.com/build/docs/access-github-from-build
-  - id: setup-git-ssh-auth
-    name: "gcr.io/cloud-builders/git"
-    secretEnv: ["GIT_SSH_KEY"]
-    entrypoint: "bash"
-    args:
-      - -c
-      - |
-        echo "$$GIT_SSH_KEY" > /root/.ssh/id_rsa
-        chmod 400 /root/.ssh/id_rsa
-        ssh-keyscan github.com >> /root/.ssh/known_hosts
-        git config --global user.email "cloudBuild_service@techsoup.org"
-        git config --global user.name "Cloud Service"
-    volumes:
-      - name: 'ssh'
-        path: /root/.ssh
-    waitFor: ["deploy-cdc-services-to-cloud-run"]
-
   - id: update-version
     name: "gcr.io/cloud-builders/git"
     entrypoint: "bash"
@@ -102,7 +105,7 @@ steps:
     volumes:
       - name: 'ssh'
         path: /root/.ssh
-    waitFor: ["setup-git-ssh-auth"]
+    waitFor: ["push-cdc-services"]
 
 timeout: 3600s
 options:

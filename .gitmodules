@@ -6,4 +6,4 @@
 	url = https://github.com/datacommonsorg/import.git
 [submodule "packages/dc-home-reboot"]
 	path = packages/dc-home-reboot
-	url = https://github.com/CaravanStudios/dc-homepage-reboot.git
+	url = git@github.com:CaravanStudios/dc-homepage-reboot.git
