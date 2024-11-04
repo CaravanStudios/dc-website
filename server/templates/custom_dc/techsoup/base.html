@@ -73,11 +73,12 @@ content - main page content
     <title>{{ title }}{{ ' - ' if title else '' }}Data Commons for Civil Society</title>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <link rel="icon" href="/custom_dc/techsoup/images/favicon.png" type="image/png">
+    <link rel="icon" href="/resources/favicon.ico" type="image/x-icon">
     <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;600&family=Roboto&display=swap"
           rel="stylesheet">
     <link rel="stylesheet" href={{ url_for('static', filename='css/core.min.css', t=config['VERSION']) }}>
     <link rel="stylesheet" href={{ url_for('static', filename='css/static.min.css', t=config['VERSION']) }}>
+    <link rel="stylesheet" href={{ url_for('static', filename='dc-homepage-reboot.css', t=config['VERSION']) }}>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined">
     {% block head %}
     {% endblock %}
@@ -97,112 +98,114 @@ content - main page content
             height="0" width="0" style="display:none;visibility:hidden"></iframe>
 </noscript>
 {# End Google Tag Manager (noscript) #}
-
+<nav-bar></nav-bar>
 <div id="main">
-    <header id="main-header">
-        <div id="main-header-container">
-            <nav class="navbar navbar-dark navbar-expand-lg col" id="main-nav">
-                <div class="container-fluid">
-                    <div class="navbar-brand">
-                        {% if LOGO_PATH %}
-                            <div id="main-header-logo">
-                                <a href="{{ url_for('static.homepage') }}">
-                                    <img src="{{ LOGO_PATH }}" alt="Techsoup logo"/>
-                                </a>
-                            </div>
-                        {% endif %}
-                        <a id="brand-name-link" href="{{ url_for('static.homepage') }}">
-                            <div id="brand-name-title">Data Commons</div>
-                            <div id="brand-name-subtitle">for Civil Society</div>
-                        </a>
-                        {% if subpage_title %}
-                            <span>
-                            {% if subpage_url %}<a href="{{ subpage_url }}">{% endif %}
-                                {{ subpage_title }}
-                                {% if subpage_url %}</a>{% endif %}
-                        </span>
-                        {% endif %}
-                    </div>
-                    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#dc-main-nav">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
-                    {% if main_id == 'homepage' and page_id == 'page-homepage' %}
-                        <div id="search-container" class="container"></div>
-                    {% endif %}
-                    <div class="collapse navbar-collapse justify-content-md-end" id="dc-main-nav">
-                        <ul class="navbar-nav float-md-right align-items-center">
-                            <li class="nav-item dropdown">
-                                <button id="nav-explore-dropdown"
-                                        class="nav-link dropdown-toggle"
-                                        type="button"
-                                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-                                        aria-label="Show exploration tools">
-                                    Explore Data
-                                </button>
-                                <div class="dropdown-menu" aria-labelledby="nav-explore-dropdown">
-                                    <a class="dropdown-item" href="{{ url_for('place.place') }}">
-                                        Place Explorer
-                                    </a>
-                                    <a class="dropdown-item" href="{{ url_for('tools.visualization') }}#visType=map">
-                                        Map Explorer
-                                    </a>
-                                    <a class="dropdown-item"
-                                       href="{{ url_for('tools.visualization') }}#visType=scatter">
-                                        Scatter Plot Explorer
-                                    </a>
-                                    <a class="dropdown-item"
-                                       href="{{ url_for('tools.visualization') }}#visType=timeline">
-                                        Timelines Explorer
-                                    </a>
-                                </div>
-                            </li>
-                            <li class="nav-item dropdown">
-                                <a href="{{ url_for('tools.download') }}" id="nav-download"
-                                   class="nav-link-main "><span>Download</span></a>
-                            </li>
-                            <li class="nav-item dropdown">
-                                <a href="{{ url_for('tools.stat_var') }}" id="nav-stat-var"
-                                   class="nav-link-main "><span>Variables</span></a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </nav>
-        </div>
-    </header>
+    {#    <header id="main-header">#}
+    {#        <div id="main-header-container">#}
+    {#            <nav class="navbar navbar-dark navbar-expand-lg col" id="main-nav">#}
+    {#                <div class="container-fluid">#}
+    {#                    <div class="navbar-brand">#}
+    {#                        {% if LOGO_PATH %}#}
+    {#                            <div id="main-header-logo">#}
+    {#                                <a href="{{ url_for('static.homepage') }}">#}
+    {#                                    <img src="{{ LOGO_PATH }}" alt="Techsoup logo"/>#}
+    {#                                </a>#}
+    {#                            </div>#}
+    {#                        {% endif %}#}
+    {#                        <a id="brand-name-link" href="{{ url_for('static.homepage') }}">#}
+    {#                            <div id="brand-name-title">Data Commons</div>#}
+    {#                            <div id="brand-name-subtitle">for Civil Society</div>#}
+    {#                        </a>#}
+    {#                        {% if subpage_title %}#}
+    {#                            <span>#}
+    {#                            {% if subpage_url %}<a href="{{ subpage_url }}">{% endif %}#}
+    {#                                {{ subpage_title }}#}
+    {#                                {% if subpage_url %}</a>{% endif %}#}
+    {#                        </span>#}
+    {#                        {% endif %}#}
+    {#                    </div>#}
+    {#                    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#dc-main-nav">#}
+    {#                        <span class="navbar-toggler-icon"></span>#}
+    {#                    </button>#}
+    {#                    {% if main_id == 'homepage' and page_id == 'page-homepage' %}#}
+    {#                        <div id="search-container" class="container"></div>#}
+    {#                    {% endif %}#}
+    {#                    <div class="collapse navbar-collapse justify-content-md-end" id="dc-main-nav">#}
+    {#                        <ul class="navbar-nav float-md-right align-items-center">#}
+    {#                            <li class="nav-item dropdown">#}
+    {#                                <button id="nav-explore-dropdown"#}
+    {#                                        class="nav-link dropdown-toggle"#}
+    {#                                        type="button"#}
+    {#                                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"#}
+    {#                                        aria-label="Show exploration tools">#}
+    {#                                    Explore Data#}
+    {#                                </button>#}
+    {#                                <div class="dropdown-menu" aria-labelledby="nav-explore-dropdown">#}
+    {#                                    <a class="dropdown-item" href="{{ url_for('place.place') }}">#}
+    {#                                        Place Explorer#}
+    {#                                    </a>#}
+    {#                                    <a class="dropdown-item" href="{{ url_for('tools.visualization') }}#visType=map">#}
+    {#                                        Map Explorer#}
+    {#                                    </a>#}
+    {#                                    <a class="dropdown-item"#}
+    {#                                       href="{{ url_for('tools.visualization') }}#visType=scatter">#}
+    {#                                        Scatter Plot Explorer#}
+    {#                                    </a>#}
+    {#                                    <a class="dropdown-item"#}
+    {#                                       href="{{ url_for('tools.visualization') }}#visType=timeline">#}
+    {#                                        Timelines Explorer#}
+    {#                                    </a>#}
+    {#                                </div>#}
+    {#                            </li>#}
+    {#                            <li class="nav-item dropdown">#}
+    {#                                <a href="{{ url_for('tools.download') }}" id="nav-download"#}
+    {#                                   class="nav-link-main "><span>Download</span></a>#}
+    {#                            </li>#}
+    {#                            <li class="nav-item dropdown">#}
+    {#                                <a href="{{ url_for('tools.stat_var') }}" id="nav-stat-var"#}
+    {#                                   class="nav-link-main "><span>Variables</span></a>#}
+    {#                            </li>#}
+    {#                        </ul>#}
+    {#                    </div>#}
+    {#                </div>#}
+    {#            </nav>#}
+    {#        </div>#}
+    {#    </header>#}
 
     <main id="{{ main_id }}" class="main-content">
         {% block content %}
         {% endblock %}
     </main>
-    <div id="main-footer-container">
-        <div class="container">
-            <div style="width:60%; line-height: 1.2">
-                <p style="margin-bottom:0.2rem;font-size: 1rem">Powered by Google's <a
-                        href="https://www.datacommons.org" target="_blank">Data Commons</a></p>
-                <p style="margin-bottom:0.2rem;font-size: 1rem">Data accessed through this website is intended
-                    for
-                    non-commercial use only (<a
-                            href="https://creativecommons.org/licenses/by-nc/4.0/deed.en"
-                            target="_blank">CC BY-NC 4.0</a>)</p>
-                <p style="margin-bottom:0.2rem;font-size: 1rem">It is provided free of charge and in the spirit
-                    of
-                    open data.</p>
-            </div>
-            <ul class="footer-links">
-                <li>
-                    <a href="https://www.techsoup.org/termsofuse" target="_blank">Terms of Use ›</a>
-                </li>
-                <li>
-                    <a href="https://www.techsoup.org/privacypolicy" target="_blank">Privacy Policy ›</a>
-                </li>
-                <li>
-                    <a href="mailto:datacommons@techsoup.org">Contact Us ›</a>
-                </li>
-            </ul>
-        </div>
-    </div>
+    {#    <div id="main-footer-container">#}
+    {#        <div class="container">#}
+    {#            <div style="width:60%; line-height: 1.2">#}
+    {#                <p style="margin-bottom:0.2rem;font-size: 1rem">Powered by Google's <a#}
+    {#                        href="https://www.datacommons.org" target="_blank">Data Commons</a></p>#}
+    {#                <p style="margin-bottom:0.2rem;font-size: 1rem">Data accessed through this website is intended#}
+    {#                    for#}
+    {#                    non-commercial use only (<a#}
+    {#                            href="https://creativecommons.org/licenses/by-nc/4.0/deed.en"#}
+    {#                            target="_blank">CC BY-NC 4.0</a>)</p>#}
+    {#                <p style="margin-bottom:0.2rem;font-size: 1rem">It is provided free of charge and in the spirit#}
+    {#                    of#}
+    {#                    open data.</p>#}
+    {#            </div>#}
+    {#            <ul class="footer-links">#}
+    {#                <li>#}
+    {#                    <a href="https://www.techsoup.org/termsofuse" target="_blank">Terms of Use ›</a>#}
+    {#                </li>#}
+    {#                <li>#}
+    {#                    <a href="https://www.techsoup.org/privacypolicy" target="_blank">Privacy Policy ›</a>#}
+    {#                </li>#}
+    {#                <li>#}
+    {#                    <a href="mailto:datacommons@techsoup.org">Contact Us ›</a>#}
+    {#                </li>#}
+    {#            </ul>#}
+    {#        </div>#}
+    {#    </div>#}
 </div>
+<custom-footer></custom-footer>
+<script type="module" src="{{ url_for('static', filename='dc-homepage-reboot.js', t=config['VERSION']) }}"/>
 {# Compile this down (or manually implement). Used only for nav bar so far #}
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"

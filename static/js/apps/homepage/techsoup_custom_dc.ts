@@ -22,9 +22,12 @@ import ReactDOM from "react-dom";
 import { TechsoupApp } from "./techsoup_app";
 
 window.addEventListener("load", (): void => {
+  const dcHomeComponent = document.querySelector('dc-home');
+  const landingPageComponent = dcHomeComponent.shadowRoot.querySelector('landing-page');
+  const searchBannerComponent = landingPageComponent.shadowRoot.querySelector('#search-bar-container');
   // Initialize search box.
   ReactDOM.render(
     React.createElement(TechsoupApp),
-    document.getElementById("search-container")
+    searchBannerComponent
   );
 });
