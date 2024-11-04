@@ -139,10 +139,11 @@
       }
     },
     "build": {
-      "command": "webpack --mode=production --progress --config webpack.config.js",
+      "command": "webpack --mode=production --progress --config webpack.config.js && cp -r ../packages/dc-home-reboot/dist/ ../server/dist/",
       "dependencies": [
         "../packages/web-components:build",
-        "../packages/client:build"
+        "../packages/client:build",
+        "../packages/dc-home-reboot:build"
       ]
     },
     "dev:nodemon": {

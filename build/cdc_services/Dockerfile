@@ -98,11 +98,15 @@ COPY packages/web-components/package-lock.json ./packages/web-components/package
 COPY packages/client/package.json ./packages/client/package.json
 COPY packages/client/package-lock.json ./packages/client/package-lock.json
 
+COPY packages/dc-home-reboot/package.json ./packages/dc-home-reboot/package.json
+COPY packages/dc-home-reboot/package-lock.json ./packages/dc-home-reboot/package-lock.json
+
 COPY static/package.json ./static/package.json
 COPY static/package-lock.json ./static/package-lock.json
 
 RUN npm --prefix /workspace/packages/web-components ci --omit=dev \
     && npm --prefix /workspace/packages/client ci \
+    && npm --prefix /workspace/packages/dc-home-reboot ci \
     && npm --prefix /workspace/static ci --omit=dev
 
 # Build static assets.
