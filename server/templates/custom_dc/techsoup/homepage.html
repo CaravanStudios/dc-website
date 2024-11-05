@@ -21,7 +21,7 @@ limitations under the License.
 {% set page_id = 'page-homepage' %}
 {% set show_search = config.get('ENABLE_MODEL') %}
 {% block head %}
-    <link rel="stylesheet" href={{ url_for('static', filename='css/homepage.min.css' , t=config['VERSION']) }}>
+{#    <link rel="stylesheet" href={{ url_for('static', filename='css/homepage.min.css' , t=config['VERSION']) }}>#}
 {% endblock %}
 {% block content %}
     <dc-home></dc-home>

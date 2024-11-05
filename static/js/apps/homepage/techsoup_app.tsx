@@ -35,7 +35,6 @@ export function TechsoupApp(): JSX.Element {
   return (
     <NlSearchBar
       inputId="query-search-input"
-      variant="header-inline"
       onSearch={(q) => {
         triggerGAEvent(GA_EVENT_NL_SEARCH, {
           [GA_PARAM_QUERY]: q,
@@ -43,7 +42,7 @@ export function TechsoupApp(): JSX.Element {
         });
         window.location.href = `/explore#q=${encodeURIComponent(q)}`;
       }}
-      placeholder={"Enter a question to explore"}
+      placeholder={""}
       initialValue={""}
       shouldAutoFocus={false}
     />
