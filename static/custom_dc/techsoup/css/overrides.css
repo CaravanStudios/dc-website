@@ -526,3 +526,67 @@ blockquote {
     display: block;
     background: #f7f7f7;
 }
+
+.search-section-container.sticky {
+    top: 68px;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+
+    @media screen and (max-width: 975px) {
+        top: 48px;
+    }
+
+    @media screen and (min-width: 2300px) and (orientation: portrait) {
+        top: 75px;
+    }
+}
+
+#main {
+    min-height: 90vh;
+    height: auto;
+}
+
+#main-pane {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+
+    #explore {
+        background-color: var(--ts-indigo);
+        border-top-right-radius: 10px;
+        border-bottom-right-radius: 10px;
+        min-height: 85vh;
+    }
+}
+
+.selector-pane {
+    min-height: 60vh;
+    overflow: hidden;
+}
+
+.vis-type-selector {
+    border-bottom: 1px solid var(--ts-lightG);
+}
+
+.selected-options-container {
+    padding-top: 3vh;
+    background-color: white;
+}
+
+.chart-section {
+    background-color: white;
+    border-bottom: 1px solid var(--ts-lightG);
+}
+
+.selected-options-container, .vis-type-selector {
+    width: 100%;
+}
+
+.selected-chart-option {
+    background-color: var(--ts-orange);
+    i {
+        color: #000;
+    }
+}

@@ -15,7 +15,3 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json
     volumes:
       - ./tmp/custom_dc:/userdata
-      - ./server:/workspace/server
-      - ./static:/workspace/static
-      - ./import:/workspace/import
-      - $HOME/.config/gcloud/application_default_credentials.json:/gcp/creds.json:ro

@@ -16,7 +16,7 @@
 /**
  * Entrypoint file for homepage.
  */
-import React from "react";
+/*import React from "react";
 import ReactDOM from "react-dom";
 
 import { TechsoupApp } from "./techsoup_app";
@@ -30,4 +30,4 @@ window.addEventListener("load", (): void => {
     React.createElement(TechsoupApp),
     searchBannerComponent
   );
-});
+}); */
