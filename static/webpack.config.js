@@ -88,6 +88,10 @@ const config = {
       __dirname + "/js/browser/browser.ts",
       __dirname + "/css/browser.scss",
     ],
+    browser_landing: [
+      __dirname + "/js/apps/browser_landing/main.ts",
+      __dirname + "/css/browser_landing.scss",
+    ],
     biomedical: __dirname + "/css/biomedical/biomedical_shared.scss",
     biomedical_landing: [
       __dirname + "/js/biomedical/landing/main.ts",
@@ -105,10 +109,6 @@ const config = {
     screenshot: [
       __dirname + "/js/apps/screenshot/main.ts",
       __dirname + "/css/screenshot.scss",
-    ],
-    translator: [
-      __dirname + "/js/translator/translator.ts",
-      __dirname + "/css/translator.scss",
     ],
     search: [
       __dirname + "/js/search/search.ts",
