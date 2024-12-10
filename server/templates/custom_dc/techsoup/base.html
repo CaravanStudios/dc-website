@@ -70,7 +70,7 @@ content - main page content
     })(window, document, 'script', 'dataLayer', 'GTM-T94G38VL');</script>
     {# End Google Tag Manager #}
 
-    <title>{{ title }}{{ ' - ' if title else '' }}Data Commons for Civil Society</title>
+    <title>{{ title }}{{ ' | ' if title else '' }}Data Commons for Civil Society</title>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <link rel="icon" href="/resources/favicon.ico" type="image/x-icon">
@@ -78,6 +78,17 @@ content - main page content
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined">
 
+    <meta content="TechSoup | Data Commons for Civil Society" property="og:site_name">
+    <meta content="TechSoup | Data Commons for Civil Society" property="og:title">
+    <meta content="website" property="og:type">
+    <meta property="og:image" data-hid="og:image:type" property="og:image:type" itemprop="image" content="https://datacommons.techsoup.org/OG.jpg">
+    <meta property="og:url" content="https://datacommons.techsoup.org/" />
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@TechSoup">
+    <meta name="twitter:title" content="TechSoup | Data Commons for Civil Society">
+    <meta name="twitter:description" content="Public Data for Good">
+    <meta name="twitter:image" content="https://datacommons.techsoup.org/OG.jpg">
 
     {% if main_id != 'homepage' and page_id != 'page-homepage' %}
             <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;600&family=Roboto&display=swap">
