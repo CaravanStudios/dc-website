@@ -226,6 +226,7 @@ export function Block(props: BlockPropType): JSX.Element {
       setOverridePlaceTypes({});
       return;
     }
+
     // TODO: Use getNamedTypedPlace and add support for multiple places there.
     axios
       .get("/api/place/named_typed", {
@@ -403,7 +404,9 @@ function renderTiles(
   }
   const tilesJsx = tiles.map((tile, i) => {
     const id = getId(columnId, TILE_ID_PREFIX, i);
-    const enclosedPlaceType = props.enclosedPlaceType;
+    const enclosedPlaceType = tile.enclosedPlaceTypeOverride
+      ? tile.enclosedPlaceTypeOverride
+      : props.enclosedPlaceType;
     const classNameList = [];
     if (tileClassName) {
       classNameList.push(tileClassName);
@@ -699,6 +702,17 @@ function renderTiles(
         console.log("Tile type not supported:" + tile.type);
     }
   });
+  if (tilesJsx.length > 1) {
+    return (
+      <div className="row">
+        {tilesJsx.map((tileJsx, tileJsxIndex) => (
+          <div key={tileJsxIndex} className="col-xl-6">
+            {tileJsx}
+          </div>
+        ))}
+      </div>
+    );
+  }
   return <>{tilesJsx}</>;
 }
 
@@ -717,7 +731,9 @@ function renderWebComponents(
   }
   const tilesJsx = tiles.map((tile, i) => {
     const id = getId(columnId, TILE_ID_PREFIX, i);
-    const enclosedPlaceType = props.enclosedPlaceType;
+    const enclosedPlaceType = tile.enclosedPlaceTypeOverride
+      ? tile.enclosedPlaceTypeOverride
+      : props.enclosedPlaceType;
     const classNameList = [];
     if (tileClassName) {
       classNameList.push(tileClassName);

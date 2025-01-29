@@ -21,7 +21,9 @@
 import {
   ApiNodePropvalOutResponse,
   ObservationDatesApiResponse,
+  PlaceChartsApiResponse,
   PointApiResponse,
+  RelatedPlacesApiResponse,
   SeriesApiResponse,
 } from "./data_commons_web_client_types";
 import { parseWebsiteApiRoot, toURLSearchParams } from "./utils";
@@ -29,6 +31,8 @@ import { parseWebsiteApiRoot, toURLSearchParams } from "./utils";
 export interface DatacommonsWebClientParams {
   apiRoot?: string;
 }
+
+const LOCALE_PARAM = "hl";
 
 class DataCommonsWebClient {
   /** Website API root */
@@ -202,6 +206,47 @@ class DataCommonsWebClient {
     const url = `${this.apiRoot || ""}/api/observation-dates?${queryString}`;
     const response = await fetch(url);
     return (await response.json()) as ObservationDatesApiResponse;
+  }
+
+  /**
+   * Gets place charts for the given category
+   * Uses /api/dev-place/charts/<placeDcid> endpoint
+   * @param params.category [optional] place category
+   * @param params.placeDcid place dcid to fetch data for
+   */
+  async getPlaceCharts(params: {
+    placeDcid: string;
+    category?: string;
+    locale?: string;
+  }): Promise<PlaceChartsApiResponse> {
+    const queryString = toURLSearchParams({
+      category: params.category,
+      [LOCALE_PARAM]: params.locale,
+    });
+    const url = `${this.apiRoot || ""}/api/dev-place/charts/${
+      params.placeDcid
+    }?${queryString}`;
+    const response = await fetch(url);
+    return (await response.json()) as PlaceChartsApiResponse;
+  }
+
+  /**
+   * Gets related place info charts for the given place
+   * Uses /api/dev-place/related-places/<placeDcid> endpoint
+   * @param params.placeDcid place dcid to fetch data for
+   */
+  async getRelatedPLaces(params: {
+    placeDcid: string;
+    locale?: string;
+  }): Promise<RelatedPlacesApiResponse> {
+    const queryString = toURLSearchParams({
+      [LOCALE_PARAM]: params.locale,
+    });
+    const url = `${this.apiRoot || ""}/api/dev-place/related-places/${
+      params.placeDcid
+    }?${queryString}`;
+    const response = await fetch(url);
+    return (await response.json()) as RelatedPlacesApiResponse;
   }
 }
 

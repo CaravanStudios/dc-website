@@ -462,3 +462,167 @@ MAPS_PREDICTIONS_VALUES = [
                      matched_query='calif',
                      score=3),
 ]
+# Place page chart config for place page testing
+SAMPLE_PLACE_PAGE_CHART_CONFIG = [{
+    "category":
+        "Crime",
+    "title_id":
+        "CHART_TITLE-Total_crime",
+    "title":
+        "Total crime",
+    "description":
+        "Total number of criminal incidents",
+    "variables": ["Count_CriminalActivities_CombinedCrime"],
+    "denominator": [],
+    "non_dividable":
+        False,
+    "scale":
+        True,
+    "blocks": [{
+        "is_overview": True,
+        "place_scope": "PLACE",
+        "charts": [{
+            "type": "LINE"
+        }, {
+            "type": "HIGHLIGHT"
+        }],
+    }],
+}, {
+    "category":
+        "Education",
+    "title_id":
+        "CHART_TITLE-Educational_attainment",
+    "title":
+        "Education attainment",
+    "denominator": [
+        "Sample_Denominator_1", "Sample_Denominator_2", "Sample_Denominator_3",
+        "Sample_Denominator_4", "Sample_Denominator_5"
+    ],
+    "description":
+        "Number of people who have attained various educational milestones, e.g. completed high school or have a bachelor's degree",
+    "non_dividable":
+        False,
+    "scale":
+        True,
+    "variables": [
+        "Count_Person_EducationalAttainmentNoSchoolingCompleted",
+        "Count_Person_EducationalAttainmentRegularHighSchoolDiploma",
+        "Count_Person_EducationalAttainmentBachelorsDegree",
+        "Count_Person_EducationalAttainmentMastersDegree",
+        "Count_Person_EducationalAttainmentDoctorateDegree"
+    ],
+    "blocks": [{
+        "is_overview": True,
+        "place_scope": "PLACE",
+        "charts": [{
+            "type": "LINE"
+        }, {
+            "type": "HIGHLIGHT"
+        }],
+    }]
+}]
+
+# Observation point response for place page testing
+OSERVATION_POINT_RESPONSE = {
+    "byVariable": {
+        "Count_CriminalActivities_CombinedCrime": {
+            "byEntity": {
+                "country/USA": {
+                    "dates": {
+                        "2022": {
+                            "value": 1000
+                        }
+                    }
+                }
+            }
+        },
+        # Include one education stat var to simulate data availability
+        "Count_Person_EducationalAttainmentBachelorsDegree": {
+            "byEntity": {
+                "country/USA": {
+                    "dates": {
+                        "2022": {
+                            "value": 500
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Observation within point response for place page testing
+OSERVATION_WITHIN_POINT_RESPONSE = {
+    "byVariable": {
+        "Count_CriminalActivities_CombinedCrime": {
+            "byEntity": {
+                "geoId/123": {
+                    "dates": {
+                        "2022": {
+                            "value": 200
+                        }
+                    }
+                }
+            }
+        },
+        # Simulate a child place with data for an educational stat var
+        "Count_Person_EducationalAttainmentMastersDegree": {
+            "byEntity": {
+                "geoId/456": {
+                    "dates": {
+                        "2022": {
+                            "value": 50
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Multiple property values response for place page testing
+MULTIPLE_PROPERTY_VALUES_RESPONSE = {
+    "country/USA": {
+        "typeOf": ["Country"],
+        "name": ['United States']
+    }
+}
+
+# Multiple property values response with languages for place page testing
+MULTIPLE_PROPERTY_VALUES_RESPONSE_WITH_LANGUAGES = {
+    'country/USA': {
+        'typeOf': ['Country'],
+        'name': ['United States of America'],
+        'nameWithLanguage': []
+    },
+    'country/CAN': {
+        'typeOf': ['Country'],
+        'name': ['Canada'],
+        'nameWithLanguage': []
+    },
+    'country/MEX': {
+        'typeOf': ['Country'],
+        'name': ['Mexico'],
+        'nameWithLanguage': []
+    },
+    'country/GBR': {
+        'typeOf': ['Country'],
+        'name': ['United Kingdom'],
+        'nameWithLanguage': []
+    },
+    'country/AUS': {
+        'typeOf': ['Country'],
+        'name': ['Australia'],
+        'nameWithLanguage': []
+    },
+    'geoId/06': {
+        'typeOf': ['State'],
+        'name': ['California'],
+        'nameWithLanguage': []
+    },
+    'geoId/07': {
+        'typeOf': ['State'],
+        'name': ['New York'],
+        'nameWithLanguage': []
+    }
+}
