@@ -81,8 +81,9 @@ content - main page content
     <meta content="TechSoup | Data Commons for Civil Society" property="og:site_name">
     <meta content="TechSoup | Data Commons for Civil Society" property="og:title">
     <meta content="website" property="og:type">
-    <meta property="og:image" data-hid="og:image:type" property="og:image:type" itemprop="image" content="https://datacommons.techsoup.org/OG.jpg">
-    <meta property="og:url" content="https://datacommons.techsoup.org/" />
+    <meta property="og:image" data-hid="og:image:type" property="og:image:type" itemprop="image"
+          content="https://datacommons.techsoup.org/OG.jpg">
+    <meta property="og:url" content="https://datacommons.techsoup.org/"/>
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:site" content="@TechSoup">
@@ -91,9 +92,10 @@ content - main page content
     <meta name="twitter:image" content="https://datacommons.techsoup.org/OG.jpg">
 
     {% if main_id != 'homepage' and page_id != 'page-homepage' %}
-            <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;600&family=Roboto&display=swap">
-            <link rel="stylesheet" href={{ url_for('static', filename='css/core.min.css', t=config['VERSION']) }}>
-            <link rel="stylesheet" href={{ url_for('static', filename='css/static.min.css', t=config['VERSION']) }}>
+        <link rel="stylesheet"
+              href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;600&family=Roboto&display=swap">
+        <link rel="stylesheet" href={{ url_for('static', filename='css/core.min.css', t=config['VERSION']) }}>
+        <link rel="stylesheet" href={{ url_for('static', filename='css/static.min.css', t=config['VERSION']) }}>
     {% endif %}
     <link rel="stylesheet" href={{ url_for('static', filename='dc-homepage-reboot.css', t=config['VERSION']) }}>
     {% block head %}
@@ -105,6 +107,7 @@ content - main page content
         globalThis.isCustomDC = {{ config['CUSTOM']|int }};
         globalThis.STAT_VAR_HIERARCHY_CONFIG = {{ config['STAT_VAR_HIERARCHY_CONFIG'] | tojson }};
     </script>
+    <script src={{ url_for('static', filename='queryStore.js', t=config['VERSION']) }} async></script>
 </head>
 
 <body>
@@ -114,6 +117,9 @@ content - main page content
             height="0" width="0" style="display:none;visibility:hidden"></iframe>
 </noscript>
 {# End Google Tag Manager (noscript) #}
+
+{# Set page locale. #}
+<div id="metadata-base" class="d-none" data-locale="{{ locale }}"></div>
 <nav-bar></nav-bar>
 <div id="main">
     {#    <header id="main-header">#}
