@@ -119,7 +119,9 @@ content - main page content
 {# End Google Tag Manager (noscript) #}
 
 {# Set page locale. #}
-<div id="metadata-base" class="d-none" data-locale="{{ locale }}"></div>
+<div id="metadata-base" class="d-none"
+     data-hide-header-search-bar="{{ true }}"
+     data-locale="{{ locale }}"></div>
 <nav-bar></nav-bar>
 <div id="main">
     {#    <header id="main-header">#}
