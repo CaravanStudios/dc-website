@@ -106,6 +106,7 @@ content - main page content
     <script>
         globalThis.isCustomDC = {{ config['CUSTOM']|int }};
         globalThis.STAT_VAR_HIERARCHY_CONFIG = {{ config['STAT_VAR_HIERARCHY_CONFIG'] | tojson }};
+        globalThis.FEATURE_FLAGS = {{ config['FEATURE_FLAGS'] | tojson }};
     </script>
     <script src={{ url_for('static', filename='queryStore.js', t=config['VERSION']) }} async></script>
 </head>

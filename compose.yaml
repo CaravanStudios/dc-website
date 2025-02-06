@@ -1,7 +1,8 @@
 services:
   web:
-    image: ts-custom-cdc-services
     platform: "linux/amd64"
+#    image: gcr.io/datcom-ci/datacommons-services:stable
+    image: ts-custom-cdc-services
     build:
       context: .
       dockerfile: build/cdc_services/Dockerfile
