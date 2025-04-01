@@ -25,27 +25,27 @@ limitations under the License.
 {% endblock %}
 {% block content %}
     <dc-home></dc-home>
-    <script>
-        // Ensure the page is loaded
-        document.addEventListener('DOMContentLoaded', () => {
-            // Wait for the custom element to be defined and ready
-            customElements.whenDefined('dc-home').then(() => {
-                console.log('Custom element fully loaded.');
-                console.log(document.getElementById("search-container"));
-
-                // Create a new script element
-                const script = document.createElement('script');
-                script.src = '{{ url_for('static', filename='techsoup_homepage_custom_dc.js' , t=config['VERSION']) }}';
-                script.type = 'text/javascript';
-                script.defer = true; // Optionally, use 'async' if needed
-
-                // Append the script to the body
-                document.body.appendChild(script);
-            }).catch((error) => {
-                console.error('Error while waiting for custom element:', error);
-            });
-        });
-    </script>
+{#    <script>#}
+{#        // Ensure the page is loaded#}
+{#        document.addEventListener('DOMContentLoaded', () => {#}
+{#            // Wait for the custom element to be defined and ready#}
+{#            customElements.whenDefined('dc-home').then(() => {#}
+{#                console.log('Custom element fully loaded.');#}
+{#                console.log(document.getElementById("search-container"));#}
+{##}
+{#                // Create a new script element#}
+{#                const script = document.createElement('script');#}
+{#                script.src = '{{ url_for('static', filename='techsoup_homepage_custom_dc.js' , t=config['VERSION']) }}';#}
+{#                script.type = 'text/javascript';#}
+{#                script.defer = true; // Optionally, use 'async' if needed#}
+{##}
+{#                // Append the script to the body#}
+{#                document.body.appendChild(script);#}
+{#            }).catch((error) => {#}
+{#                console.error('Error while waiting for custom element:', error);#}
+{#            });#}
+{#        });#}
+{#    </script>#}
     {#    <section class="container">#}
     {#        <div class="homepage-header"></div>#}
     {#    </section>#}
