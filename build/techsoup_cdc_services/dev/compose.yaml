@@ -1,0 +1,106 @@
+services:
+  dc-mixer:
+    platform: "linux/amd64"
+    image: ts-custom-cdc-services
+    #    image: gcr.io/datcom-ci/datacommons-services:stable
+    build:
+      context: ../../..
+      dockerfile: build/techsoup_cdc_services/Dockerfile
+    expose:
+      - "8081"
+    networks:
+      - dc-web-net
+    env_file:
+      - .env.list
+    environment:
+      - DOCKER_BUILDKIT=1
+      - DEBUG=true
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json
+    volumes:
+      - ../../../tmp/custom_dc:/userdata
+      - ./run_mixer.sh:/workspace/run_mixer.sh
+    command: >
+      bash -c "
+        echo 'Running dependencies';
+        chmod +x ./run_mixer.sh && ./run_mixer.sh
+      "
+
+  dc-nl-python:
+    platform: "linux/amd64"
+    image: ts-custom-cdc-services
+    depends_on:
+      - dc-mixer
+    ports:
+      - "6060:6060"
+    env_file:
+      - .env.list
+    environment:
+      - DOCKER_BUILDKIT=1
+      - DEBUG=true
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json
+    networks:
+      - dc-web-net
+    command: [ "python3", "nl_app.py", "6060" ]
+
+  dc-website:
+    platform: "linux/amd64"
+    #    image: gcr.io/datcom-ci/datacommons-services:stable
+    image: ts-custom-cdc-services
+    depends_on:
+      - dc-mixer
+      - dc-nl-python
+    expose:
+      - "7070"
+    ports:
+        - "5670:5669"
+    env_file:
+      - .env.list
+    environment:
+      - DOCKER_BUILDKIT=1
+      - DEBUG=true
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json
+      - NL_SERVICE_ROOT_URL=http://dc-nl-python:6060
+      - WEBSITE_MIXER_API_ROOT=http://dc-mixer:8081
+    networks:
+      - dc-web-net
+    volumes:
+      - ../../../tmp/custom_dc:/userdata
+      - ../../../secrets:/workspace/secrets
+    command: > 
+        bash -c "
+            echo 'Install pip dependencies';
+            pip install debugpy;
+            echo 'Running website';
+            python3 -Xfrozen_modules=off -m debugpy --listen 0.0.0:5669 ts_web_app.py 7070;
+        "
+#      - ./server:/workspace/server
+#      - dist_volume:/workspace/server/dist
+#      - ./ts_server:/workspace/ts_server
+#      - dist_ts_volume:/workspace/ts_server/dist
+
+#    entrypoint: ["sh", "-c"]
+#    command:
+#      - ./build/cdc_services/run.sh
+#      - echo "Container is running"
+
+  nginx:
+    platform: "linux/amd64"
+    image: nginx:latest
+    container_name: nginx
+    depends_on:
+      - dc-mixer
+      - dc-nl-python
+      - dc-website
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx-cdc-dev.conf:/etc/nginx/nginx.conf
+    networks:
+      - dc-web-net
+
+volumes:
+  dist_volume:
+  dist_ts_volume:
+networks:
+  dc-web-net:
+    driver: bridge
