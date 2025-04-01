@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2025 Techsoup
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,19 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Data Commons static content routes."""
-
-from flask import Blueprint
-from flask import render_template
-
-bp = Blueprint('ts_issue_landing', __name__)
-
-
-@bp.route('/food-security')
-def food_security():
-    return render_template('custom_dc/techsoup-moved/issue_landing/foodsecurity.html')
-
-
-@bp.route('/climate')
-def climate():
-    return render_template('custom_dc/techsoup-moved/issue_landing/climate.html')

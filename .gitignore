@@ -17,7 +17,8 @@ screenshots/screenshot_url.json
 .vscode
 .idea
 !.vscode/launch.json
-.env.list
+build/techsoup_cdc_services/dev/.env.list
+secrets/
 
 # Mac
 .DS_Store

@@ -51,7 +51,7 @@ steps:
         echo $image_label > /workspace/image_label.txt
 
         # Bundle container with website, esp and mixer.
-        DOCKER_BUILDKIT=1 docker build -f build/cdc_services/Dockerfile \
+        DOCKER_BUILDKIT=1 docker build -f build/techsoup_cdc_services/Dockerfile \
           --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:${image_label} \
           --tag us-central1-docker.pkg.dev/${PROJECT_ID}/datacommons/cdc-services:latest \
           .

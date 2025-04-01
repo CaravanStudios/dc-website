@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,19 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Data Commons static content routes."""
+"""Main entry for website Flask app.
+"""
 
-from flask import Blueprint
-from flask import render_template
+import logging
+import sys
 
-bp = Blueprint('ts_issue_landing', __name__)
+from ts_server.__init__ import create_app
 
+app = create_app()
 
-@bp.route('/food-security')
-def food_security():
-    return render_template('custom_dc/techsoup-moved/issue_landing/foodsecurity.html')
-
-
-@bp.route('/climate')
-def climate():
-    return render_template('custom_dc/techsoup-moved/issue_landing/climate.html')
+if __name__ == '__main__':
+  # This is used when running locally only. When deploying to GKE,
+  # a webserver process such as Gunicorn will serve the app.
+  logging.info("Run web server in local mode")
+  port = sys.argv[1] if len(sys.argv) >= 2 else 8080
+  app.run(host='0.0.0.0', port=port, debug=True)
