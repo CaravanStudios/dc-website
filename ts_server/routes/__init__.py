@@ -18,5 +18,8 @@ def register_blueprints(app):
   from ts_server.routes.static import bp
   app.register_blueprint(bp)
 
+  from ts_server.routes.ts_issue_landing.html import bp as ts_issue_landing_bp
+  app.register_blueprint(ts_issue_landing_bp)
+
   from ts_server.routes.subscribe.api import subscribe_api
   app.register_blueprint(subscribe_api)

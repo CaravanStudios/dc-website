@@ -32,7 +32,6 @@ import {
 } from "../../constants/app/explore_constants";
 import {
   ExploreContext,
-  NlSessionContext,
   RankingUnitUrlFuncContext,
 } from "../../shared/context";
 import { QueryResult, UserMessageInfo } from "../../types/app/explore_types";
@@ -45,6 +44,7 @@ import { getPlaceTypePlural } from "../../utils/string_utils";
 import { trimCategory } from "../../utils/subject_page_utils";
 import { getUpdatedHash } from "../../utils/url_utils";
 import { DebugInfo } from "./debug_info";
+import { HighlightResult } from "./highlight_result";
 import { RelatedPlace } from "./related_place";
 import { ResultHeaderSection } from "./result_header_section";
 import { SearchSection } from "./search_section";
@@ -68,6 +68,8 @@ interface SuccessResultPropType {
   //if true, there is no header bar search, and so we display search inline
   //if false, there is a header bar search, and so we do not display search inline
   hideHeaderSearchBar: boolean;
+  // Object containing the highlight page metadata only.
+  highlightPageMetadata?: SubjectPageMetadata;
 }
 
 export function SuccessResult(props: SuccessResultPropType): ReactElement {
@@ -173,27 +175,31 @@ export function SuccessResult(props: SuccessResultPropType): ReactElement {
                 })}`;
               }}
             >
-              <NlSessionContext.Provider value={props.pageMetadata.sessionId}>
-                <ExploreContext.Provider
-                  value={{
-                    exploreMore: props.pageMetadata.exploreMore,
-                    place: props.pageMetadata.place.dcid,
-                    placeType: props.exploreContext.childEntityType || "",
-                  }}
-                >
-                  <SubjectPageMainPane
-                    id={PAGE_ID}
-                    place={props.pageMetadata.place}
-                    pageConfig={trimCategory(
-                      props.pageMetadata.pageConfig,
-                      maxBlock
-                    )}
-                    svgChartHeight={SVG_CHART_HEIGHT}
-                    showExploreMore={true}
+              <ExploreContext.Provider
+                value={{
+                  exploreMore: props.pageMetadata.exploreMore,
+                  place: props.pageMetadata.place.dcid,
+                  placeType: props.exploreContext.childEntityType || "",
+                }}
+              >
+                {props.highlightPageMetadata && (
+                  <HighlightResult
+                    highlightPageMetadata={props.highlightPageMetadata}
+                    maxBlock={maxBlock}
                   />
-                  <ScrollToTopButton />
-                </ExploreContext.Provider>
-              </NlSessionContext.Provider>
+                )}
+                <SubjectPageMainPane
+                  id={PAGE_ID}
+                  place={props.pageMetadata.place}
+                  pageConfig={trimCategory(
+                    props.pageMetadata.pageConfig,
+                    maxBlock
+                  )}
+                  svgChartHeight={SVG_CHART_HEIGHT}
+                  showExploreMore={true}
+                />
+                <ScrollToTopButton />
+              </ExploreContext.Provider>
             </RankingUnitUrlFuncContext.Provider>
             {!emptyPlaceOverview &&
               !_.isEmpty(props.pageMetadata.childPlaces) && (
