@@ -34,6 +34,11 @@ WORKDIR /workspace
 COPY ts_server/app_env/techsoup.py ./server/app_env/techsoup.py
 COPY ts_server/requirements.txt ./ts_server/requirements.txt
 
+# Workaround to put back the techsoup topic pages
+COPY server/config ./server/config
+COPY server/routes/topic_page ./server/routes/topic_page
+COPY server/lib/util.py ./server/lib/util.py
+
 RUN pip3 install --no-cache-dir -r /workspace/ts_server/requirements.txt
 
 # Override Flask app if needed
@@ -44,9 +49,16 @@ COPY ts_web_app.py .
 COPY build/techsoup_cdc_services/run.sh .
 
 # Static website assets.
-COPY --from=extended_builder /workspace/packages/dc-home-reboot/dist ./ts_server/dist
+# Copy built package into a temporary folder
+COPY --from=extended_builder /workspace/packages/dc-home-reboot/dist /tmp/packages_dist
 
-COPY ./ts_server/static ./ts_server/dist
+# Copy static files into a temporary folder
+COPY ts_server/static /tmp/ts_server_static
+
+# Create final dist directory and merge both sources
+RUN mkdir -p ./ts_server/dist && \
+    cp -r /tmp/packages_dist/* ./ts_server/dist/ && \
+    cp -r /tmp/ts_server_static/* ./ts_server/dist/
 
 # Make script executable.
 RUN chmod +x run.sh

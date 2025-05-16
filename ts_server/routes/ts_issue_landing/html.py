@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,15 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Data Commons static content routes."""
 
-TIMEOUT = 3600 * 24 * 7
+from flask import Blueprint
+from flask import render_template
 
-def register_blueprints(app):
-  from ts_server.routes.static import bp
-  app.register_blueprint(bp)
+bp = Blueprint('ts_issue_landing', __name__)
 
-  from ts_server.routes.ts_issue_landing.html import bp as ts_issue_landing_bp
-  app.register_blueprint(ts_issue_landing_bp)
 
-  from ts_server.routes.subscribe.api import subscribe_api
-  app.register_blueprint(subscribe_api)
+@bp.route('/food-security')
+def food_security():
+    return render_template('custom_dc/custom/issue_landing/foodsecurity.html')
+
+
+@bp.route('/climate')
+def climate():
+    return render_template('custom_dc/custom/issue_landing/climate.html')
