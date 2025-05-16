@@ -231,7 +231,7 @@ export function Block(props: BlockPropType): JSX.Element {
     if (!isEligibleForSnapToHighestCoverage) {
       return;
     }
-    (async () => {
+    (async (): Promise<void> => {
       const enableSnapToHighestCoverage =
         await shouldEnableSnapToHighestCoverage(
           props.place.dcid,
@@ -253,7 +253,7 @@ export function Block(props: BlockPropType): JSX.Element {
               <Input
                 type="checkbox"
                 checked={useDenom}
-                onChange={() => setUseDenom(!useDenom)}
+                onChange={(): void => setUseDenom(!useDenom)}
               />
               <span data-testid="see-per-capita">
                 {intl.formatMessage(messages.seePerCapita)}
@@ -267,7 +267,7 @@ export function Block(props: BlockPropType): JSX.Element {
               <Input
                 checked={snapToHighestCoverage}
                 disabled={!enableSnapToLatestData}
-                onChange={() =>
+                onChange={(): void =>
                   setSnapToHighestCoverage(!snapToHighestCoverage)
                 }
                 type="checkbox"
@@ -352,7 +352,7 @@ export function Block(props: BlockPropType): JSX.Element {
       {isNlInterface() && props.columns.length > NL_NUM_BLOCKS_SHOWN && (
         <div
           className="show-more-expando"
-          onClick={(e) => {
+          onClick={(e): void => {
             onShowMore();
             e.preventDefault();
           }}
@@ -367,7 +367,7 @@ export function Block(props: BlockPropType): JSX.Element {
 
   // Removes HIDE_COLUMN_CLASS from all columns in this block and hides the
   // show more button.
-  function onShowMore() {
+  function onShowMore(): void {
     const columns = columnSectionRef.current.getElementsByClassName(
       HIDE_COLUMN_CLASS
     ) as HTMLCollectionOf<HTMLElement>;
