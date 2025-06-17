@@ -28,6 +28,8 @@ static/node_modules/
 server/dist/
 
 **/.env/
+**/.env_website/
+**/.env_nl/
 
 screenshots/*.png
 
