@@ -58,7 +58,29 @@ export const metadataComponentMessages = defineMessages({
     defaultMessage: "Publication cadence",
     description:
       "Label for the cadence of publication. This is the rate of publication of the data. " +
-      "Example are: Yearly, Monthly.",
+      "Examples are: Yearly, Monthly.",
+  },
+  ObservationPeriod: {
+    id: "observationPeriod",
+    defaultMessage: "Observation period",
+    description:
+      "The time period over which an observation is made." +
+      "Examples are: Yearly, Monthly. " +
+      "See: https://docs.datacommons.org/glossary.html#observation-period.",
+  },
+  ScalingFactor: {
+    id: "scalingFactor",
+    defaultMessage: "Scaling factor",
+    description:
+      "In conjunction with the measurement denominator, scaling factor indicates the multiplication " +
+      "factor applied to the value. " +
+      "See: https://docs.datacommons.org/glossary.html#scaling-factor.",
+  },
+  DataCommonsAggregate: {
+    id: "dataCommonsAggregate",
+    defaultMessage: "Data Commons aggregate",
+    description:
+      "Indicates that a data set is an aggregate derived by Data Commons from another data set.",
   },
   License: {
     id: "license",
@@ -73,6 +95,21 @@ export const metadataComponentMessages = defineMessages({
     description:
       "Label for the methodology used to produce the data. Examples are: ACS 5-Year Survey, " +
       "OECD Regional Statistics.",
+  },
+  Notes: {
+    id: "notes",
+    defaultMessage: "Notes",
+    description:
+      "Label for the notes section. This contains information about the data that does not fit in " +
+      "other section.",
+  },
+  PerCapitaNote: {
+    id: "perCapitaNote",
+    defaultMessage:
+      "This statistical variable was used to calculate the per capita value. “Per capita” means “per person.” To calculate a per capita value, a total amount is divided by the number of people as represented by this variable.",
+    description:
+      "Label for the notes section. This contains information about the data that does not fit in " +
+      "other section.",
   },
   SourceAndCitation: {
     id: "sourceAndCitation",

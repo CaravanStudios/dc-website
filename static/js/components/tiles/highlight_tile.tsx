@@ -19,13 +19,24 @@
  */
 
 import _ from "lodash";
-import React, { ReactElement, useEffect, useRef, useState } from "react";
+import React, {
+  ReactElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   ASYNC_ELEMENT_CLASS,
   ASYNC_ELEMENT_HOLDER_CLASS,
 } from "../../constants/css_constants";
 import { formatNumber, translateUnit } from "../../i18n/i18n";
+import {
+  buildObservationSpecs,
+  ObservationSpec,
+  ObservationSpecOptions,
+} from "../../shared/observation_specs";
 import { Observation, StatMetadata } from "../../shared/stat_types";
 import {
   NamedTypedPlace,
@@ -81,16 +92,53 @@ export function HighlightTile(props: HighlightTilePropType): ReactElement {
     null
   );
 
+  const {
+    statVarSpec,
+    place,
+    highlightFacet,
+    apiRoot,
+    description: highlightDesc,
+  } = props;
+
   useEffect(() => {
     (async (): Promise<void> => {
       try {
-        const data = await fetchData(props);
+        const data = await fetchData(
+          place,
+          statVarSpec,
+          highlightFacet,
+          apiRoot
+        );
         setHighlightData(data);
       } catch {
         setHighlightData(null);
       }
     })();
-  }, [props]);
+  }, [apiRoot, highlightFacet, place, statVarSpec, highlightDesc]);
+
+  /**
+   * Callback function for building observation specifications.
+   * This is used by the API dialog to generate API calls (e.g., cURL
+   * commands) for the user.
+   *
+   * @returns A function that builds an array of `ObservationSpec`
+   * objects, or `undefined` if chart data is not yet available.
+   */
+  const getObservationSpecs = useMemo(() => {
+    if (!highlightData) {
+      return undefined;
+    }
+    return (): ObservationSpec[] => {
+      const defaultDate = props.statVarSpec.date || "LATEST";
+      const options: ObservationSpecOptions = {
+        statVarSpecs: [props.statVarSpec],
+        placeDcids: [props.place.dcid],
+        statVarToFacets: highlightData.statVarToFacets,
+        defaultDate,
+      };
+      return buildObservationSpecs(options);
+    };
+  }, [highlightData, props.statVarSpec, props.place]);
 
   if (!highlightData) {
     return null;
@@ -142,6 +190,7 @@ export function HighlightTile(props: HighlightTilePropType): ReactElement {
           facets={highlightData.facets}
           statVarToFacets={highlightData.statVarToFacets}
           statVarSpecs={[props.statVarSpec]}
+          getObservationSpecs={getObservationSpecs}
         />
       )}
     </div>
@@ -166,32 +215,33 @@ export function getDescription(
 }
 
 export const fetchData = async (
-  props: HighlightTilePropType
+  place: NamedTypedPlace,
+  statVarSpec: StatVarSpec,
+  highlightFacet: FacetMetadata,
+  apiRoot?: string
 ): Promise<HighlightData> => {
+  const facetId = highlightFacet
+    ? undefined
+    : statVarSpec.facetId
+    ? [statVarSpec.facetId]
+    : undefined;
   // Now assume highlight only talks about one stat var.
   const statPromise = getPoint(
-    props.apiRoot,
-    [props.place.dcid],
-    [props.statVarSpec.statVar],
-    props.statVarSpec.date,
+    apiRoot,
+    [place.dcid],
+    [statVarSpec.statVar],
+    statVarSpec.date,
     undefined,
-    props.highlightFacet
+    highlightFacet,
+    facetId
   );
-  const denomPromise = props.statVarSpec.denom
-    ? getSeries(
-        props.apiRoot,
-        [props.place.dcid],
-        [props.statVarSpec.denom],
-        [],
-        props.highlightFacet
-      )
+  const denomPromise = statVarSpec.denom
+    ? getSeries(apiRoot, [place.dcid], [statVarSpec.denom], [], highlightFacet)
     : Promise.resolve(null);
   const [statResp, denomResp] = await Promise.all([statPromise, denomPromise]);
-  const mainStatData = _.isArray(
-    statResp.data[props.statVarSpec.statVar][props.place.dcid]
-  )
-    ? statResp.data[props.statVarSpec.statVar][props.place.dcid][0]
-    : statResp.data[props.statVarSpec.statVar][props.place.dcid];
+  const mainStatData = _.isArray(statResp.data[statVarSpec.statVar][place.dcid])
+    ? statResp.data[statVarSpec.statVar][place.dcid][0]
+    : statResp.data[statVarSpec.statVar][place.dcid];
   let value = mainStatData.value;
 
   const facets: Record<string, StatMetadata> = {};
@@ -201,10 +251,10 @@ export const fetchData = async (
 
   if (mainStatData.facet && facet) {
     facets[mainStatData.facet] = facet;
-    if (!statVarToFacets[props.statVarSpec.statVar]) {
-      statVarToFacets[props.statVarSpec.statVar] = new Set();
+    if (!statVarToFacets[statVarSpec.statVar]) {
+      statVarToFacets[statVarSpec.statVar] = new Set();
     }
-    statVarToFacets[props.statVarSpec.statVar].add(mainStatData.facet);
+    statVarToFacets[statVarSpec.statVar].add(mainStatData.facet);
   }
 
   const sources = new Set<string>();
@@ -212,27 +262,39 @@ export const fetchData = async (
     sources.add(facet.provenanceUrl);
   }
   const { unit, scaling, numFractionDigits } = getStatFormat(
-    props.statVarSpec,
+    statVarSpec,
     statResp
   );
   let numFractionDigitsUsed: number;
-  if (props.statVarSpec.denom) {
+  if (statVarSpec.denom) {
     const denomInfo = getDenomInfo(
-      props.statVarSpec,
+      statVarSpec,
       denomResp,
-      props.place.dcid,
+      place.dcid,
       mainStatData.date
     );
     if (denomInfo && value) {
       value /= denomInfo.value;
-      sources.add(denomInfo.source);
+      const denomSeries = denomResp.data[statVarSpec.denom]?.[place.dcid];
+
+      if (denomSeries?.facet) {
+        const denomFacet = denomResp.facets[denomSeries.facet];
+        if (denomFacet) {
+          sources.add(denomFacet.provenanceUrl);
+          facets[denomSeries.facet] = denomFacet;
+          if (!statVarToFacets[statVarSpec.denom]) {
+            statVarToFacets[statVarSpec.denom] = new Set<string>();
+          }
+          statVarToFacets[statVarSpec.denom].add(denomSeries.facet);
+        }
+      }
     } else {
       value = null;
     }
   }
   let errorMsg = "";
   if (_.isUndefined(value) || _.isNull(value)) {
-    errorMsg = getNoDataErrorMsg([props.statVarSpec]);
+    errorMsg = getNoDataErrorMsg([statVarSpec]);
   } else {
     // Only do additional calculations if value is not null or undefined
     // If value is a decimal, calculate the numFractionDigits as the number of

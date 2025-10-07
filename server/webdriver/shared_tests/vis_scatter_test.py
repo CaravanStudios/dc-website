@@ -17,9 +17,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from server.webdriver.base_utils import find_elems
+from server.webdriver.base_utils import LONG_TIMEOUT
 import server.webdriver.shared as shared
 
-SCATTER_URL = '/tools/visualization#visType=scatter'
+SCATTER_URL = '/tools/visualization?disable_feature=standardized_vis_tool#visType=scatter'
 URL_HASH_1 = '&place=geoId/06&placeType=County&sv=%7B"dcid"%3A"Count_Person_NoHealthInsurance"%7D___%7B"dcid"%3A"Count_Person_Female"%7D'
 
 
@@ -59,7 +60,8 @@ class VisScatterTestMixin():
     self.driver.get(self.url_ + SCATTER_URL + URL_HASH_1)
 
     # Wait until the chart has loaded.
-    WebDriverWait(self.driver, self.TIMEOUT_SEC).until(shared.charts_rendered)
+    shared.wait_for_charts_to_render(self.driver,
+                                     timeout_seconds=self.TIMEOUT_SEC)
 
     # Assert place name is correct.
     place_name_chip = self.driver.find_element(
@@ -76,13 +78,13 @@ class VisScatterTestMixin():
         By.CSS_SELECTOR, '.selected-option-chip.stat-var .chip-content')
     self.assertTrue(
         'Population Without Health Insurance' in stat_var_chips[0].text)
-    self.assertTrue('Female Population' in stat_var_chips[1].text)
+    self.assertTrue('female population' in stat_var_chips[1].text.lower())
 
     # Assert chart is correct.
     chart_title = self.driver.find_element(By.CSS_SELECTOR,
                                            '.scatter-chart .chart-headers h4')
     self.assertIn("Population Without Health Insurance ", chart_title.text)
-    self.assertIn(" vs Female Population ", chart_title.text)
+    self.assertIn(" vs female population ", chart_title.text.lower())
     chart = self.driver.find_element(By.ID, 'scatterplot')
     circles = chart.find_elements(By.TAG_NAME, 'circle')
     self.assertGreater(len(circles), 20)
@@ -99,7 +101,7 @@ class VisScatterTestMixin():
         'Population Without Health Insurance (%)' in y_axis_label.text)
     x_axis_label = self.driver.find_element(By.CSS_SELECTOR,
                                             '#scatterplot .x-axis-label')
-    self.assertTrue('Female Population (%)' in x_axis_label.text)
+    self.assertTrue('female population (%)' in x_axis_label.text.lower())
     chart = self.driver.find_element(By.ID, 'scatterplot')
     circles = chart.find_elements(By.TAG_NAME, 'circle')
     self.assertGreater(len(circles), 20)
@@ -115,19 +117,17 @@ class VisScatterTestMixin():
         By.CLASS_NAME, 'source-selector-open-modal-button')
     edit_source_button.click()
     element_present = EC.presence_of_element_located(
-        (By.CLASS_NAME, 'modal-body'))
+        (By.CSS_SELECTOR,
+         '.source-selector-facet-options-section input[type="radio"]'))
     WebDriverWait(self.driver, self.TIMEOUT_SEC).until(element_present)
     source_option_sections = self.driver.find_elements(
-        By.CLASS_NAME, 'source-selector-options-section')
+        By.CLASS_NAME, 'source-selector-facet-options-section')
     self.assertEqual(len(source_option_sections), 2)
-    # Open the selection section for each sv
-    self.driver.find_elements(By.CLASS_NAME,
-                              'source-selector-trigger')[0].click()
-    self.driver.find_elements(By.CLASS_NAME,
-                              'source-selector-trigger')[1].click()
     # Update the source for the Count_Person_Female sv
-    shared.select_source(self.driver, "CDC_Mortality_UnderlyingCause",
-                         "Count_Person_Female")
+    shared.select_source(self.driver, [
+        "Wonder: Mortality, Underlying Cause Of Death",
+        "CDC_Mortality_UnderlyingCause"
+    ], "Count_Person_Female")
     update_button = self.driver.find_element(
         By.CLASS_NAME, 'source-selector-update-source-button')
     update_button.click()
@@ -136,7 +136,7 @@ class VisScatterTestMixin():
     chart_title = self.driver.find_element(By.CSS_SELECTOR,
                                            '.scatter-chart .chart-headers h4')
     self.assertIn("Population Without Health Insurance ", chart_title.text)
-    self.assertIn(" vs Female Population ", chart_title.text)
+    self.assertIn(" vs female population ", chart_title.text.lower())
     chart_source = self.driver.find_element(
         By.CSS_SELECTOR, '.scatter-chart .chart-headers .sources')
     self.assertTrue("wonder.cdc.gov" in chart_source.text)
@@ -181,10 +181,11 @@ class VisScatterTestMixin():
     shared.click_el(self.driver, (By.CLASS_NAME, 'continue-button'))
 
     # Assert chart is correct
-    WebDriverWait(self.driver, self.TIMEOUT_SEC).until(shared.charts_rendered)
+    shared.wait_for_charts_to_render(self.driver,
+                                     timeout_seconds=self.TIMEOUT_SEC)
     chart_title = self.driver.find_element(By.CSS_SELECTOR,
                                            '.scatter-chart .chart-headers h4')
-    self.assertIn("Median Age of Population ", chart_title.text)
+    self.assertIn("median age of population ", chart_title.text.lower())
     self.assertIn(" vs Median Income of a Population ", chart_title.text)
     circles = find_elems(self.driver,
                          by=By.CSS_SELECTOR,
@@ -203,8 +204,9 @@ class VisScatterTestMixin():
     self.driver.find_element(By.CSS_SELECTOR, '.info-content a').click()
 
     # Assert chart loads
-    element_present = EC.presence_of_element_located((By.ID, 'scatterplot'))
-    WebDriverWait(self.driver, self.TIMEOUT_SEC).until(element_present)
-    chart = self.driver.find_element(By.ID, 'scatterplot')
-    circles = chart.find_elements(By.TAG_NAME, 'circle')
+    # This chart can be slow to load, so we use extra wait time
+    shared.wait_for_charts_to_render(self.driver, timeout_seconds=LONG_TIMEOUT)
+    circles = find_elems(self.driver,
+                         by=By.CSS_SELECTOR,
+                         value='#scatterplot circle')
     self.assertGreater(len(circles), 20)
