@@ -459,6 +459,10 @@ def load_fallback_feature_flags(environment: str):
     env_to_use = 'custom'
   elif environment in environments_with_local_files:
     env_to_use = environment
+  # techsoup custom flask env
+  elif environment == 'techsoup':
+    env_to_use = 'custom'
+    logging.info(f"Loading fallback feature flags from TechSoup environment: {env_to_use}")
   else:
     env_to_use = 'production'
 
