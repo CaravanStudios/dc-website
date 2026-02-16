@@ -16,12 +16,14 @@
 
 import axios from "axios";
 import _ from "lodash";
-import { URLSearchParams } from "url";
 
 import { AutoCompleteResult } from "../components/nl_search_bar/auto_complete_input";
 import { Theme } from "../theme/types";
 import { stringifyFn } from "../utils/axios";
 import { MAX_DATE, MAX_YEAR, SOURCE_DISPLAY_NAME } from "./constants";
+import { FacetSelectorFacetInfo } from "./facet_selector/facet_selector";
+import { StatMetadata } from "./stat_types";
+import { StatVarFacetMap, StatVarSpec } from "./types";
 
 // This has to be in sync with server/__init__.py
 export const placeExplorerCategories = [
@@ -45,6 +47,7 @@ const SEARCH_PARAMS_TO_PROPAGATE = new Set([
   "hl",
   "enable_feature",
   "disable_feature",
+  "detector",
 ]);
 
 const NO_DATE_CAP_RCP_STATVARS = [
@@ -132,6 +135,36 @@ export function urlToDisplayText(url: string): string {
     .replace("https://", "")
     .replace("www.", "")
     .split(/[/?#]/)[0];
+}
+
+/**
+ * Processes a source url for display in the UI.
+ * Sanitizes the url to prevent XSS attacks while also
+ * prepending https:// if the url is missing a protocol.
+ */
+export function sanitizeSourceUrl(url: string): string {
+  if (!url) {
+    return "";
+  }
+
+  const trimmedUrl = url.trim();
+
+  // Ensure we have a protocol for the parser to work
+  // If the input is missing a valid protocol, we prepend https://
+  // Prepending https:// blocks unsafe protocols like javascript:// or vbscript://
+  const urlToParse =
+    trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://")
+      ? trimmedUrl
+      : "https://" + trimmedUrl;
+
+  try {
+    const parsed = new URL(urlToParse);
+    return parsed.href;
+  } catch (e) {
+    // If the URL does not have a valid URL structure, return empty
+    // This will block urls with scripts like http://javascript:alert(1)
+    return "";
+  }
 }
 
 /**
@@ -361,27 +394,35 @@ export function replaceQueryWithSelection(
       ) {
         const placeTypeSummary = statVarInfo?.[result.dcid]?.placeTypeSummary;
         if (placeTypeSummary) {
-          const countryPlaces = placeTypeSummary?.Country?.topPlaces || [];
-          const statePlaces = placeTypeSummary?.State?.topPlaces || [];
-          const adminArea1Places =
-            placeTypeSummary?.AdministrativeArea1?.topPlaces || [];
-          const eurostatNUTS1Places =
-            placeTypeSummary?.EurostatNUTS1?.topPlaces || [];
-
-          // Use the spread syntax to create a new array containing all elements
-          const places = [
-            ...countryPlaces,
-            ...statePlaces,
-            ...adminArea1Places,
-            ...eurostatNUTS1Places,
-          ];
-          if (places && places.length > 0) {
-            const randomIndex = Math.floor(Math.random() * places.length);
-            const randomPlace = places[randomIndex];
+          // Check for Earth first.
+          const earthPlace = placeTypeSummary?.Place?.topPlaces?.find(
+            (p) => p.dcid === "Earth"
+          );
+          if (earthPlace) {
             return {
-              query: `${prefix}${result.name} in ${randomPlace.name}`,
-              placeDcid: randomPlace.dcid,
+              query: `${prefix}${result.name} in the ${earthPlace.name}`,
+              placeDcid: earthPlace.dcid,
             };
+          }
+
+          // Ordered list of other place types.
+          const placeTypes = [
+            "Continent",
+            "Country",
+            "State",
+            "AdministrativeArea1",
+            "EurostatNUTS1",
+          ];
+          for (const placeType of placeTypes) {
+            const places = placeTypeSummary?.[placeType]?.topPlaces;
+            if (places && places.length > 0) {
+              const randomIndex = Math.floor(Math.random() * places.length);
+              const randomPlace = places[randomIndex];
+              return {
+                query: `${prefix}${result.name} in ${randomPlace.name}`,
+                placeDcid: randomPlace.dcid,
+              };
+            }
           }
         }
         return {
@@ -397,4 +438,63 @@ export function replaceQueryWithSelection(
     query: stripPatternFromQuery(query, result.matchedQuery) + result.name,
     placeDcid: "",
   };
+}
+
+/**
+ * Returns a map of facet ids to stat metadata for the metadata modal.
+ *
+ * @param facetList list of facets from facet selector
+ * @returns map of facet ids to stat metadata
+ */
+export function getFacetMetadataFromFacetList(
+  facetList: FacetSelectorFacetInfo[]
+): Record<string, StatMetadata> {
+  return Object.assign({}, ...facetList.map((facet) => facet.metadataMap));
+}
+
+/**
+ * Returns a map of stat var dcids to facets and a list of stat var specs
+ * to be used in the metadata modal.
+ * The secondAxis parameters are used for the scatter plot.
+ *
+ * @param facetList list of facets from facet selector
+ * @param svFacetId mapping of stat var dcids to facet ids
+ * @param perCapita whether the stat var is per capita
+ * @param unit unit of the stat var
+ * @param log whether the stat var is log scaled
+ * @param secondAxisPerCapita whether the stat var is per capita on the second axis
+ * @param secondAxisUnit unit of the stat var on the second axis
+ * @param secondAxisLog whether the stat var is log scaled on the second axis
+ */
+export function getStatVarMetadataFromFacets(
+  facetList: FacetSelectorFacetInfo[],
+  svFacetId: Record<string, string>,
+  perCapita: boolean,
+  unit: string,
+  log: boolean,
+  secondAxisPerCapita?: boolean,
+  secondAxisUnit?: string,
+  secondAxisLog?: boolean
+): {
+  statVarToFacets: StatVarFacetMap;
+  statVarSpecs: StatVarSpec[];
+} {
+  const statVarToFacets: StatVarFacetMap = {};
+  const statVarSpecs: StatVarSpec[] = [];
+  facetList.forEach((facet, index) => {
+    statVarToFacets[facet.dcid] = new Set(Object.keys(facet.metadataMap));
+    const isFirstAxis = index === 0;
+    statVarSpecs.push({
+      statVar: facet.dcid,
+      name: facet.name,
+      denom: (isFirstAxis ? perCapita : secondAxisPerCapita)
+        ? "Count_Person"
+        : "",
+      unit: (isFirstAxis ? unit : secondAxisUnit) || "",
+      scaling: 1,
+      log: isFirstAxis ? log : secondAxisLog,
+      facetId: svFacetId[facet.dcid] || "",
+    });
+  });
+  return { statVarToFacets, statVarSpecs };
 }

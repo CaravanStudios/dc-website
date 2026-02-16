@@ -27,10 +27,8 @@ static/node_modules/
 
 server/dist/
 
-**/.env/
-**/.env_website/
-**/.env_nl/
-
-screenshots/*.png
+**/.venv/
+**/.venv_website/
+**/.venv_nl/
 
 website/autopush/commit_hash.txt

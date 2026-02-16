@@ -33,11 +33,13 @@ import server.lib.config as lib_config
 from server.lib.disaster_dashboard import get_disaster_dashboard_data
 from server.lib.feature_flags import BIOMED_NL_FEATURE_FLAG
 from server.lib.feature_flags import DATA_OVERVIEW_FEATURE_FLAG
+from server.lib.feature_flags import ENABLE_NL_AGENT_DETECTOR
 from server.lib.feature_flags import is_feature_enabled
 import server.lib.i18n as i18n
 from server.lib.nl.common.bad_words import EMPTY_BANNED_WORDS
 from server.lib.nl.common.bad_words import load_bad_words
 from server.lib.nl.detection import llm_prompt
+from server.lib.nl.detection.agent.agent import create_detection_agent
 import server.lib.util as libutil
 import server.services.bigtable as bt
 from server.services.discovery import configure_endpoints_from_ingress
@@ -110,9 +112,6 @@ def register_routes_base_dc(app):
   from server.routes import redirects
   app.register_blueprint(redirects.bp)
 
-  from server.routes.screenshot import html as screenshot_html
-  app.register_blueprint(screenshot_html.bp)
-
   from server.routes.special_announcement import \
       html as special_announcement_html
   app.register_blueprint(special_announcement_html.bp)
@@ -126,29 +125,10 @@ def register_routes_base_dc(app):
   from server.routes.disaster import api as disaster_api
   app.register_blueprint(disaster_api.bp)
 
-
 def register_routes_custom_dc(app):
   ## apply the blueprints for custom dc instances
   from server.routes.ts_issue_landing import html as ts_issue_landing_html
   app.register_blueprint(ts_issue_landing_html.bp)
-
-def register_routes_biomedical_dc(app):
-  # Apply the blueprints specific to biomedical dc
-  from server.routes.biomedical import html as bio_html
-  app.register_blueprint(bio_html.bp)
-
-  from server.routes.disease import api as disease_api
-  app.register_blueprint(disease_api.bp)
-
-  from server.routes.disease import html as disease_html
-  app.register_blueprint(disease_html.bp)
-
-  from server.routes.protein import api as protein_api
-  app.register_blueprint(protein_api.bp)
-
-  from server.routes.protein import html as protein_html
-  app.register_blueprint(protein_html.bp)
-
 
 def register_routes_disasters(app):
   # Install blueprints specific to disasters
@@ -324,6 +304,11 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
 
   cfg = lib_config.get_config()
 
+  # Initialize Webdriver recorder/replay if enabled
+  if os.environ.get('WEBDRIVER_RECORDING_MODE'):
+    from server.lib import recorder
+    recorder.init_recorder(app)
+
   if lib_gcp.in_google_network() and not lib_utils.is_test_env():
     client = google.cloud.logging.Client()
     client.setup_logging()
@@ -363,13 +348,7 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
   if ingress_config_path:
     configure_endpoints_from_ingress(ingress_config_path)
 
-
-
-  if os.environ.get('FLASK_ENV') == 'biomedical':
-    register_routes_biomedical_dc(app)
-  else:
-    register_routes_custom_dc(app)
-
+  register_routes_custom_dc(app)
   register_routes_common(app)
   register_routes_base_dc(app)
 
@@ -452,6 +431,11 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
       app.config['LLM_API_KEY'] = _get_api_key(['LLM_API_KEY'],
                                                cfg.SECRET_PROJECT,
                                                'palm-api-key')
+      if is_feature_enabled(ENABLE_NL_AGENT_DETECTOR, app):
+        os.environ['GEMINI_API_KEY'] = app.config['LLM_API_KEY']
+        app.config['NL_DETECTION_AGENT'] = create_detection_agent(
+            os.environ.get("AGENT_MODEL", "gemini-2.5-flash"),
+            os.environ.get("DC_MCP_URL"))
 
     app.config[
         'NL_BAD_WORDS'] = EMPTY_BANNED_WORDS if cfg.CUSTOM else load_bad_words(

@@ -47,12 +47,10 @@ const config = {
       __dirname + "/js/apps/biomed_nl/main.ts",
       __dirname + "/css/biomed_nl.scss",
     ],
-    diff: [__dirname + "/js/apps/diff/main.ts", __dirname + "/css/diff.scss"],
     timeline: [
       __dirname + "/js/tools/timeline/timeline.ts",
       __dirname + "/css/tools/timeline.scss",
     ],
-    timeline_bulk_download: [__dirname + "/js/tools/timeline/bulk_download.ts"],
     mcf_playground: __dirname + "/js/mcf_playground.js",
     queryStore: path.resolve(__dirname, "js/shared/stores/query_store.ts"),
     base: [__dirname + "/js/apps/base/main.ts", __dirname + "/css/core.scss"],
@@ -99,24 +97,7 @@ const config = {
       __dirname + "/js/apps/browser_landing/main.ts",
       __dirname + "/css/browser_landing.scss",
     ],
-    biomedical: __dirname + "/css/biomedical/biomedical_shared.scss",
-    biomedical_landing: [
-      __dirname + "/js/biomedical/landing/main.ts",
-      __dirname + "/css/biomedical/biomedical_landing.scss",
-    ],
-    disease: [
-      __dirname + "/js/biomedical/disease/disease.ts",
-      __dirname + "/css/biomedical/disease.scss",
-    ],
-    protein: [
-      __dirname + "/js/biomedical/protein/protein.ts",
-      __dirname + "/css/biomedical/protein.scss",
-    ],
     static: __dirname + "/css/static.scss",
-    screenshot: [
-      __dirname + "/js/apps/screenshot/main.ts",
-      __dirname + "/css/screenshot.scss",
-    ],
     search: [
       __dirname + "/js/search/search.ts",
       __dirname + "/css/search.scss",
@@ -210,11 +191,19 @@ const config = {
           },
         ],
       },
+      {
+        test: /\.m?js/,
+        resolve: {
+          fullySpecified: false,
+        },
+      },
     ],
   },
   plugins: [
     new webpack.DefinePlugin({
-      'process.env.IS_CLOUD_BUILD': JSON.stringify(process.env.IS_CLOUD_BUILD || 'false'),
+      "process.env.IS_CLOUD_BUILD": JSON.stringify(
+        process.env.IS_CLOUD_BUILD || "false"
+      ),
     }),
     new NodePolyfillPlugin(),
     new CopyPlugin({
@@ -265,7 +254,7 @@ module.exports = (env, argv) => {
     config.devtool = "source-map";
     config.stats.preset = "log";
 
-    if (process.env.IS_CLOUD_BUILD !== 'true') {
+    if (process.env.IS_CLOUD_BUILD !== "true") {
       // Only log progress outside of cloud where it's useful to see the build starting.
       config.plugins.push(
         new webpack.ProgressPlugin(interactiveProgressHandler)
