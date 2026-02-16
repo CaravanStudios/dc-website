@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  */
 
 /**
- * Component for rendering the side bar of a subject page.
+ * Component for rendering the sidebar of a subject page.
  */
 
-import React from "react";
+import React, { ReactElement } from "react";
 
 export interface Item {
   text: string;
@@ -27,16 +27,25 @@ export interface Item {
 
 interface ItemListPropType {
   items: Item[];
+  showRelevantTopicLabel?: boolean;
+  onItemClicked?: React.MouseEventHandler<HTMLAnchorElement>;
 }
 
-export function ItemList(props: ItemListPropType): JSX.Element {
+export function ItemList(props: ItemListPropType): ReactElement {
   return (
     <div className="item-list-container">
       <div className="item-list-inner">
+        {props.showRelevantTopicLabel && (
+          <span className="explore-relevant-topics">Related topics</span>
+        )}
         {props.items.map((item, idx) => {
           return (
             <div key={idx} className="item-list-item">
-              <a className="item-list-text" href={item.url}>
+              <a
+                className="item-list-text"
+                href={item.url}
+                onClick={props.onItemClicked}
+              >
                 {item.text}
               </a>
             </div>

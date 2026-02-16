@@ -20,6 +20,7 @@ import re
 from typing import Dict, List
 
 import server.services.datacommons as dc
+from shared.lib.constants import MIXER_RESPONSE_ID_FIELD
 
 COMPLEX_UNIT_REGEX = r'\[.+ [0-9]+\]'
 
@@ -131,6 +132,8 @@ def _compact_point(point_resp, all_facets):
         else:
           data[var][entity] = {}
   result['data'] = data
+  # Setting the response ID to reference in usage logs if this result is cached
+  result[MIXER_RESPONSE_ID_FIELD] = point_resp.get(MIXER_RESPONSE_ID_FIELD, [])
   return result
 
 
@@ -167,6 +170,8 @@ def _compact_series(series_resp, all_facets):
               'series': [],
           }
   result['data'] = data
+  # Setting the request ID to reference in the cache
+  result[MIXER_RESPONSE_ID_FIELD] = series_resp[MIXER_RESPONSE_ID_FIELD] if MIXER_RESPONSE_ID_FIELD in series_resp else []
   return result
 
 
@@ -400,6 +405,46 @@ def property_values(nodes, prop, out=True, constraints=''):
   return result
 
 
+def multiple_property_values(nodes: List[str],
+                             props: List[str],
+                             out=True) -> Dict[str, Dict[str, List[str]]]:
+  """
+  Fetches specified properties for given nodes using the /v2/node API.
+
+  Args:
+      nodes (List[str]): List of node dcids.
+      props (List[str]): Properties to retrieve for each node.
+      out (bool): If True, fetches outgoing properties; otherwise, incoming (default: True).
+
+  Returns:
+      dict: A dictionary mapping each node to its properties and their values.
+
+  Example:
+      nodes = ["geoId/06", "country/USA"]
+      props = ["typeOf", "name"]
+      result = multiple_property_values(nodes, props)
+      # Example result:
+      # {
+      #   "geoId/06": {"typeOf": ["State", "AdministrativeArea1], "name": ["California"]},
+      #   "country/USA": {"typeOf": ["Country"], "name": ["United States of America"]}
+      # }
+  """
+  props_expression = f"[{', '.join(props)}]"
+  resp = dc.v2node(nodes, '{}{}'.format('->' if out else '<-',
+                                        props_expression))
+
+  # Parse response into a structured dictionary
+  result: Dict[str, Dict[str, List[str]]] = {}
+  resp_data = resp.get('data', {})
+  for node in nodes:
+    resp_node_arcs = resp_data.get(node, {}).get('arcs', {})
+    result[node] = {}
+    for prop in props:
+      prop_nodes = resp_node_arcs.get(prop, {}).get('nodes', [])
+      result[node][prop] = [p.get('dcid') or p.get('value') for p in prop_nodes]
+  return result
+
+
 def raw_property_values(nodes, prop, out=True, constraints=''):
   """Returns full property values data out of REST API response.
 
@@ -425,8 +470,15 @@ def raw_property_values(nodes, prop, out=True, constraints=''):
   return result
 
 
-def triples(nodes, out=True):
+def triples(nodes, out=True, max_pages=1):
   """Fetch triples for given nodes.
+        
+        
+  Args:
+    - nodes: The dcids of nodes to find the triples of.
+    - out: Whether outgoing or incoming arcs should be fetched.
+    - max_pages: The maximum number of pages to fetch. If None, v2node is
+        queried until nextToken is not in the response.
 
   The response is the following format:
   {
@@ -444,7 +496,7 @@ def triples(nodes, out=True):
   }
 
   """
-  resp = dc.v2node(nodes, '->*' if out else '<-*')
+  resp = dc.v2node_paginated(nodes, '->*' if out else '<-*', max_pages)
   result = {}
   for node, arcs in resp.get('data', {}).items():
     result[node] = {}

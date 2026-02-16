@@ -27,7 +27,14 @@ import { ChartEventDetail } from "@datacommonsorg/web-components";
 import axios from "axios";
 import * as d3 from "d3";
 import _ from "lodash";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  ReactElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { VisType } from "../../apps/visualization/vis_type_configs";
 import {
@@ -40,12 +47,24 @@ import { drawLegendSvg, getTooltipHtmlFn } from "../../chart/draw_map_utils";
 import { GeoJsonData } from "../../chart/types";
 import { URL_PATH } from "../../constants/app/visualization_constants";
 import { CSV_FIELD_DELIMITER } from "../../constants/tile_constants";
-import { USA_PLACE_DCID } from "../../shared/constants";
-import { PointApiResponse, SeriesApiResponse } from "../../shared/stat_types";
+import { intl } from "../../i18n/i18n";
+import { messages } from "../../i18n/i18n_messages";
+import { DATE_HIGHEST_COVERAGE, USA_PLACE_DCID } from "../../shared/constants";
+import { useLazyLoad } from "../../shared/hooks";
+import {
+  buildObservationSpecs,
+  ObservationSpec,
+} from "../../shared/observation_specs";
+import {
+  PointApiResponse,
+  SeriesApiResponse,
+  StatMetadata,
+} from "../../shared/stat_types";
 import {
   DataPointMetadata,
   NamedPlace,
   NamedTypedPlace,
+  StatVarFacetMap,
   StatVarSpec,
 } from "../../shared/types";
 import { getCappedStatVarDate } from "../../shared/util";
@@ -59,21 +78,23 @@ import {
   isChildPlaceOf,
   shouldShowMapBoundaries,
 } from "../../tools/shared_util";
+import { FacetSelectionCriteria } from "../../types/facet_selection_criteria";
 import {
   getContextStatVar,
   getHash,
 } from "../../utils/app/visualization_utils";
 import { stringifyFn } from "../../utils/axios";
-import { getPointWithin, getSeriesWithin } from "../../utils/data_fetch_utils";
-import { datacommonsClient } from "../../utils/datacommons_client";
+import { getDataCommonsClient } from "../../utils/data_commons_client";
+import { getPointWithin } from "../../utils/data_fetch_utils";
 import { getDateRange } from "../../utils/string_utils";
 import {
+  clearContainer,
   getDenomInfo,
+  getDenomResp,
   getNoDataErrorMsg,
   getStatFormat,
   getStatVarNames,
   ReplacementStrings,
-  showError,
   transformCsvHeader,
 } from "../../utils/tile_utils";
 import { ChartTileContainer } from "./chart_tile";
@@ -127,6 +148,18 @@ export interface MapTilePropType {
   sources?: string[];
   // Optional: listen for property value changes with this event name
   subscribe?: string;
+  // Optional: Only load this component when it enters the viewport
+  lazyLoad?: boolean;
+  /**
+   * Optional: If lazy loading is enabled, load the component when it is within
+   * this margin of the viewport. Default: "0px"
+   */
+  lazyLoadMargin?: string;
+  // Optional: Passed into mixer calls to differentiate website and web components in usage logs
+  surface?: string;
+  // Metadata for the facet to highlight.
+  facetSelector?: FacetSelectionCriteria;
+  hyperlink?: string;
 }
 
 // Api responses associated with a single layer of the map
@@ -137,7 +170,8 @@ interface RawData {
   parentPlaces: NamedTypedPlace[];
   place: NamedTypedPlace;
   placeStat: PointApiResponse;
-  population: SeriesApiResponse;
+  denomsByFacet: Record<string, SeriesApiResponse>;
+  defaultDenomData: SeriesApiResponse;
   variable: StatVarSpec;
 }
 
@@ -175,12 +209,19 @@ export interface MapChartData {
   layerData: MapLayerData[];
   // props used when fetching this data
   props: MapTilePropType;
+  // A set of string sources (URLs)
   sources: Set<string>;
+  // A full set of the facets used within the chart
+  facets?: Record<string, StatMetadata>;
+  // A mapping of which stat var used which facets
+  statVarToFacets?: StatVarFacetMap;
   // Set if the component receives a date value from a subscribed event
   dateOverride?: string;
+  // A mapping of stat var to the name of the variable
+  statVarToVariableName: Record<string, string>;
 }
 
-export function MapTile(props: MapTilePropType): JSX.Element {
+export function MapTile(props: MapTilePropType): ReactElement {
   const svgContainer = useRef<HTMLDivElement>(null);
   const errorMsgContainer = useRef<HTMLDivElement>(null);
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -188,9 +229,10 @@ export function MapTile(props: MapTilePropType): JSX.Element {
   const [mapChartData, setMapChartData] = useState<MapChartData | undefined>(
     null
   );
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [svgHeight, setSvgHeight] = useState(null);
   const [dateOverride, setDateOverride] = useState(null);
+  const { shouldLoad, containerRef } = useLazyLoad(props.lazyLoadMargin);
   const zoomParams = props.allowZoom
     ? {
         zoomInButtonId: `${ZOOM_IN_BUTTON_ID}-${props.id}`,
@@ -199,16 +241,20 @@ export function MapTile(props: MapTilePropType): JSX.Element {
     : null;
   const showZoomButtons =
     !!zoomParams && !!mapChartData && _.isEqual(mapChartData.props, props);
+  const dataCommonsClient = getDataCommonsClient(props.apiRoot, props.surface);
 
   useEffect(() => {
+    if (props.lazyLoad && !shouldLoad) {
+      return;
+    }
     if (
       _.isEmpty(mapChartData) ||
       !_.isEqual(mapChartData.props, props) ||
       !_.isEqual(mapChartData.dateOverride, dateOverride)
     ) {
-      (async () => {
-        setIsLoading(true);
+      (async (): Promise<void> => {
         try {
+          setIsLoading(true);
           const data = await fetchData(props, dateOverride);
           if (
             data &&
@@ -239,6 +285,7 @@ export function MapTile(props: MapTilePropType): JSX.Element {
     legendContainer,
     mapContainer,
     dateOverride,
+    shouldLoad,
   ]);
 
   useEffect(() => {
@@ -269,17 +316,64 @@ export function MapTile(props: MapTilePropType): JSX.Element {
   }, [props, mapChartData, svgContainer, legendContainer, mapContainer]);
   useDrawOnResize(drawFn, svgContainer.current);
   useEffect(() => {
+    const eventHandler = (e: CustomEvent<ChartEventDetail>): void => {
+      if (e.detail.property === "date") {
+        setDateOverride(e.detail.value);
+      }
+    };
+
     if (props.subscribe) {
-      self.addEventListener(
-        props.subscribe,
-        (e: CustomEvent<ChartEventDetail>) => {
-          if (e.detail.property === "date") {
-            setDateOverride(e.detail.value);
-          }
-        }
-      );
+      self.addEventListener(props.subscribe, eventHandler);
     }
-  }, []);
+
+    // Cleanup function to remove the event listener
+    return () => {
+      if (props.subscribe) {
+        self.removeEventListener(props.subscribe, eventHandler);
+      }
+    };
+  }, [props.subscribe]);
+
+  /**
+   * Callback function for building observation specifications.
+   * This is used by the API dialog to generate API calls (e.g., cURL
+   * commands) for the user.
+   *
+   * @returns A function that builds an array of `ObservationSpec`
+   * objects, or `undefined` if chart data is not yet available.
+   */
+  const getObservationSpecs = useMemo(() => {
+    if (!mapChartData) {
+      return undefined;
+    }
+    return (): ObservationSpec[] => {
+      const layers = getDataSpec(props);
+      return layers.flatMap((layer) => {
+        let date: string;
+        const effectiveDate = mapChartData.dateOverride || layer.variable.date;
+        if (effectiveDate === DATE_HIGHEST_COVERAGE) {
+          // If the date is HIGHEST_COVERAGE, we get all data. This is because
+          // the V2 API does not have a HIGHEST_COVERAGE concept.
+          date = "";
+        } else {
+          // Otherwise, if the date is blank, we ask for the latest.
+          date = effectiveDate || "LATEST";
+        }
+        const finalDate = getCappedStatVarDate(layer.variable.statVar, date);
+        const updatedSpec: StatVarSpec = {
+          ...layer.variable,
+          date: finalDate,
+        };
+        const entityExpression = `${layer.parentPlace}<-containedInPlace+{typeOf:${layer.enclosedPlaceType}}`;
+
+        return buildObservationSpecs({
+          statVarSpecs: [updatedSpec],
+          statVarToFacets: mapChartData.statVarToFacets,
+          entityExpression,
+        });
+      });
+    };
+  }, [mapChartData, props]);
 
   return (
     <ChartTileContainer
@@ -287,13 +381,17 @@ export function MapTile(props: MapTilePropType): JSX.Element {
       isLoading={isLoading}
       title={props.title}
       subtitle={props.subtitle}
+      apiRoot={props.apiRoot}
       sources={props.sources || (mapChartData && mapChartData.sources)}
+      facets={mapChartData?.facets}
+      statVarToFacets={mapChartData?.statVarToFacets}
+      forwardRef={containerRef}
       replacementStrings={
         mapChartData && getReplacementStrings(props, mapChartData)
       }
       className={`${props.className} map-chart`}
       allowEmbed={true}
-      getDataCsv={async () => {
+      getDataCsv={async (): Promise<string> => {
         const layers = getDataSpec(props);
         const rows: DataRow[] = [];
         for (const layer of layers) {
@@ -308,24 +406,30 @@ export function MapTile(props: MapTilePropType): JSX.Element {
             : undefined;
 
           rows.push(
-            ...(await datacommonsClient.getDataRows({
+            ...(await dataCommonsClient.getDataRows({
               childType,
               date,
               entityProps,
               parentEntity,
-              perCapitaVariables: props.statVarSpec.denom
-                ? [props.statVarSpec.statVar]
-                : undefined,
-              variables: [layer.variable.statVar],
+              variables: [],
+              statVarSpecs: [layer.variable],
             }))
           );
         }
         return dataRowsToCsv(rows, CSV_FIELD_DELIMITER, transformCsvHeader);
       }}
+      getObservationSpecs={getObservationSpecs}
       isInitialLoading={_.isNull(mapChartData)}
       exploreLink={props.showExploreMore ? getExploreLink(props) : null}
-      hasErrorMsg={!_.isEmpty(mapChartData) && !!mapChartData.errorMsg}
+      errorMsg={!_.isEmpty(mapChartData) && mapChartData.errorMsg}
       footnote={props.footnote}
+      statVarSpecs={
+        !_.isEmpty(props.dataSpecs)
+          ? [props.dataSpecs[0].variable]
+          : [props.statVarSpec]
+      }
+      surface={props.surface}
+      hyperlink={props.hyperlink}
     >
       {showZoomButtons && !mapChartData.errorMsg && (
         <div className="map-zoom-button-section">
@@ -341,7 +445,10 @@ export function MapTile(props: MapTilePropType): JSX.Element {
         id={props.id}
         className="svg-container"
         ref={svgContainer}
-        style={{ minHeight: svgHeight }}
+        style={{
+          minHeight: svgHeight,
+          display: mapChartData && mapChartData.errorMsg ? "none" : "flex",
+        }}
       >
         <div className="error-msg" ref={errorMsgContainer}></div>
         <div className="map" ref={mapContainer}></div>
@@ -398,6 +505,7 @@ export const fetchData = async (
     return null;
   }
   const rawDataArray = [];
+  const allStatVarToVariableNames: Record<string, string> = {};
   for (const layer of layers) {
     // TODO: Currently we make one set of data fetches per layer.
     //       We should switch to concurrent/batch calls across all layers.
@@ -414,6 +522,8 @@ export const fetchData = async (
     if (props.geoJsonProp) {
       geoJsonParams["geoJsonProp"] = props.geoJsonProp;
     }
+    // Set the language for the geojson request
+    geoJsonParams["hl"] = intl.locale;
     const geoJsonPromise = axios
       .get(`${props.apiRoot || ""}/api/choropleth/geojson`, {
         params: geoJsonParams,
@@ -431,23 +541,32 @@ export const fetchData = async (
       dateOverride || layer.variable.date
     );
     const facetIds = layer.variable.facetId ? [layer.variable.facetId] : null;
-    const placeStatPromise: Promise<PointApiResponse> = getPointWithin(
+    const placeStat: PointApiResponse = await getPointWithin(
       props.apiRoot,
       layer.enclosedPlaceType,
       layer.parentPlace,
       [layer.variable.statVar],
       dataDate,
       [],
-      facetIds
+      facetIds,
+      props.surface,
+      props.facetSelector
     );
-    const populationPromise: Promise<SeriesApiResponse> = layer.variable.denom
-      ? getSeriesWithin(
-          props.apiRoot,
-          layer.parentPlace,
-          layer.enclosedPlaceType,
-          [layer.variable.denom]
-        )
-      : Promise.resolve(null);
+    let denomsByFacet: Record<string, SeriesApiResponse> = null;
+    let defaultDenomData: SeriesApiResponse = null;
+    if (layer.variable.denom) {
+      [denomsByFacet, defaultDenomData] = await getDenomResp(
+        [layer.variable.denom],
+        placeStat,
+        props.apiRoot,
+        true,
+        props.surface,
+        null,
+        layer.parentPlace,
+        layer.enclosedPlaceType
+      );
+    }
+
     const parentPlacesPromise = props.parentPlaces
       ? Promise.resolve(props.parentPlaces)
       : axios
@@ -456,22 +575,21 @@ export const fetchData = async (
           )
           .then((resp) => resp.data);
     try {
-      const [geoJson, placeStat, population, parentPlaces, borderGeoJsonData] =
-        await Promise.all([
-          geoJsonPromise,
-          placeStatPromise,
-          populationPromise,
-          parentPlacesPromise,
-          borderGeoJsonPromise,
-        ]);
+      const [geoJson, parentPlaces, borderGeoJsonData] = await Promise.all([
+        geoJsonPromise,
+        parentPlacesPromise,
+        borderGeoJsonPromise,
+      ]);
       // Get human-readable name of variable to display as label
-      const statVarDcidToName = await getStatVarNames(
+      const statVarToVariableName = await getStatVarNames(
         [layer.variable],
         props.apiRoot,
         props.getProcessedSVNameFn
       );
+      // Update the mapping of stat var to variable name
+      Object.assign(allStatVarToVariableNames, statVarToVariableName);
       layer.variable.name =
-        layer.variable.name || statVarDcidToName[layer.variable.statVar];
+        layer.variable.name || statVarToVariableName[layer.variable.statVar];
       // Only draw borders for containing places without 'wall to wall' coverage
       const borderGeoJson = shouldShowBorder(layer.enclosedPlaceType)
         ? borderGeoJsonData
@@ -483,7 +601,8 @@ export const fetchData = async (
         parentPlaces,
         place,
         placeStat,
-        population,
+        denomsByFacet,
+        defaultDenomData,
         variable: layer.variable,
       };
       rawDataArray.push(rawData);
@@ -491,19 +610,26 @@ export const fetchData = async (
       return null;
     }
   }
-  const mapChartData = rawToChart(rawDataArray, props, dateOverride);
-  return mapChartData;
+  return rawToChart(
+    rawDataArray,
+    props,
+    allStatVarToVariableNames,
+    dateOverride
+  );
 };
 
 function rawToChart(
   rawDataArray: RawData[],
   props: MapTilePropType,
+  statVarToVariableName: Record<string, string>,
   dateOverride?: string
 ): MapChartData {
   const allDataValues = [];
   const dates: Set<string> = new Set();
   const layerData = [];
   const sources: Set<string> = new Set();
+  const facets: Record<string, StatMetadata> = {};
+  const statVarToFacets: StatVarFacetMap = {};
   let isUsaPlace = true; // whether all layers are about USA places
 
   for (const rawData of rawDataArray) {
@@ -546,6 +672,18 @@ function rawToChart(
     );
     const dataValues = {};
     const metadata = {};
+
+    for (const placeDcid in placeStat) {
+      const facetId = placeStat[placeDcid].facet;
+      if (facetId && metadataMap[facetId]) {
+        facets[facetId] = metadataMap[facetId];
+        if (!statVarToFacets[rawData.variable.statVar]) {
+          statVarToFacets[rawData.variable.statVar] = new Set();
+        }
+        statVarToFacets[rawData.variable.statVar].add(facetId);
+      }
+    }
+
     for (const placeDcid of childPlaces) {
       const placeChartData = getPlaceChartData(
         placeStat,
@@ -564,11 +702,14 @@ function rawToChart(
         }
       });
       if (rawData.variable.denom) {
+        const facet = placeStat[placeDcid].facet;
         const denomInfo = getDenomInfo(
           rawData.variable,
-          rawData.population,
+          rawData.denomsByFacet,
           placeDcid,
-          placeChartData.date
+          placeChartData.date,
+          facet,
+          rawData.defaultDenomData
         );
         if (_.isEmpty(denomInfo)) {
           // skip this data point because missing denom data.
@@ -578,6 +719,14 @@ function rawToChart(
         placeChartData.metadata.popSource = denomInfo.source;
         placeChartData.metadata.popDate = denomInfo.date;
         sources.add(denomInfo.source);
+        const denomStatVar = rawData.variable.denom;
+        if (denomInfo.facetId && denomInfo.facet) {
+          facets[denomInfo.facetId] = denomInfo.facet;
+          if (!statVarToFacets[denomStatVar]) {
+            statVarToFacets[denomStatVar] = new Set<string>();
+          }
+          statVarToFacets[denomStatVar].add(denomInfo.facetId);
+        }
       }
       if (scaling) {
         value = value * scaling;
@@ -613,7 +762,10 @@ function rawToChart(
     layerData,
     props,
     sources,
+    facets,
+    statVarToFacets,
     dateOverride,
+    statVarToVariableName,
   };
 }
 
@@ -631,7 +783,7 @@ export function draw(
     // clear the map and legend before adding error message
     mapContainer.innerHTML = "";
     legendContainer.innerHTML = "";
-    showError(chartData.errorMsg, errorMsgContainer);
+    clearContainer(errorMsgContainer);
     return;
   }
   // clear the error message before drawing the map and legend
@@ -715,7 +867,7 @@ function getExploreLink(props: MapTilePropType): {
     {}
   );
   return {
-    displayText: "Map Tool",
+    displayText: intl.formatMessage(messages.mapTool),
     url: `${props.apiRoot || ""}${URL_PATH}#${hash}`,
   };
 }

@@ -18,10 +18,11 @@
  * Main component for DC Explore.
  */
 
+import { ThemeProvider } from "@emotion/react";
 import axios from "axios";
 import _ from "lodash";
 import queryString from "query-string";
-import React, { useEffect, useRef, useState } from "react";
+import React, { ReactElement, useEffect, useRef, useState } from "react";
 import { RawIntlProvider } from "react-intl";
 import { Container } from "reactstrap";
 
@@ -32,26 +33,48 @@ import {
   URL_DELIM,
   URL_HASH_PARAMS,
 } from "../../constants/app/explore_constants";
-import { intl } from "../../i18n/i18n";
+import { intl, localizeLink } from "../../i18n/i18n";
+import { messages } from "../../i18n/i18n_messages";
 import {
+  WEBSITE_SURFACE,
+  WEBSITE_SURFACE_HEADER,
+} from "../../shared/constants";
+import {
+  GA_EVENT_HIGHLIGHT_CHART_INJECTED,
   GA_EVENT_NL_DETECT_FULFILL,
   GA_EVENT_NL_FULFILL,
   GA_EVENT_PAGE_VIEW,
+  GA_PARAM_CHART_TYPE,
   GA_PARAM_PLACE,
   GA_PARAM_QUERY,
+  GA_PARAM_SOURCE,
+  GA_PARAM_STAT_VAR,
   GA_PARAM_TIMING_MS,
   GA_PARAM_TOPIC,
   triggerGAEvent,
 } from "../../shared/ga_events";
-import {
-  QueryResult,
-  UserMessageInfo,
-} from "../../types/app/nl_interface_types";
+import { useQueryStore } from "../../shared/stores/query_store_hook";
+import { extractFlagsToPropagate } from "../../shared/util";
+import theme from "../../theme/theme";
+import { QueryResult, UserMessageInfo } from "../../types/app/explore_types";
+import { FacetSelectionCriteria } from "../../types/facet_selection_criteria";
 import { SubjectPageMetadata } from "../../types/subject_page_types";
-import { getUpdatedHash } from "../../utils/url_utils";
+import { getDataCommonsClient } from "../../utils/data_commons_client";
+import { shouldSkipPlaceOverview } from "../../utils/explore_utils";
+import {
+  extractUrlHashParams,
+  getSingleParam,
+  getUpdatedHash,
+  UrlHashParams,
+} from "../../utils/url_utils";
 import { AutoPlay } from "./autoplay";
 import { ErrorResult } from "./error_result";
-import { SearchSection } from "./search_section";
+import {
+  extractMainPlace,
+  extractMetadata,
+  filterBlocksFromPageMetadata,
+  isFulfillDataValid,
+} from "./explore_utils";
 import { SuccessResult } from "./success_result";
 
 enum LoadingStatus {
@@ -62,18 +85,6 @@ enum LoadingStatus {
 }
 
 const DEFAULT_PLACE = "geoId/06";
-
-const getSingleParam = (input: string | string[]): string => {
-  // If the input is an array, convert it to a single string
-  if (Array.isArray(input)) {
-    return input[0];
-  }
-  if (!input) {
-    // Return empty instead of letting it be undefined.
-    return "";
-  }
-  return input;
-};
 
 const toApiList = (input: string): string[] => {
   // Split of an empty string returns [''].  Trim empties.
@@ -89,21 +100,39 @@ function getAutoPlayQueries(): string[] {
   return toApiList(queryListParam);
 }
 
+interface AppProps {
+  //true if the app is in demo mode
+  isDemo: boolean;
+  //if true, there is no header bar search, and so we display search inline
+  //if false, there is a header bar search, and so we do not display search inline
+  hideHeaderSearchBar: boolean;
+}
+
 /**
  * Application container
  */
-export function App(props: { isDemo: boolean }): JSX.Element {
+export function App(props: AppProps): ReactElement {
   const [loadingStatus, setLoadingStatus] = useState<string>(
     props.isDemo ? LoadingStatus.DEMO_INIT : LoadingStatus.LOADING
   );
   const [query, setQuery] = useState<string>("");
   const [pageMetadata, setPageMetadata] = useState<SubjectPageMetadata>(null);
+  const [highlightPageMetadata, setHighlightPageMetadata] =
+    useState<SubjectPageMetadata>(null);
+  const [highlightFacet, setHighlightFacet] =
+    useState<FacetSelectionCriteria>(null);
   const [userMessage, setUserMessage] = useState<UserMessageInfo>(null);
   const [debugData, setDebugData] = useState<any>({});
   const [queryResult, setQueryResult] = useState<QueryResult>(null);
   const savedContext = useRef([]);
   const autoPlayQueryList = useRef(getAutoPlayQueries());
   const [autoPlayQuery, setAutoPlayQuery] = useState("");
+
+  const {
+    setQueryString: setStoreQueryString,
+    setQueryResult: setStoreQueryResult,
+    setDebugData: setStoreDebugData,
+  } = useQueryStore();
 
   useEffect(() => {
     // If in demo mode, should input first autoplay query on mount.
@@ -126,97 +155,121 @@ export function App(props: { isDemo: boolean }): JSX.Element {
     ? null
     : savedContext.current[0]["insightCtx"];
   return (
-    <RawIntlProvider value={intl}>
-      <Container className="explore-container">
-        {props.isDemo && (
-          <AutoPlay
-            autoPlayQuery={autoPlayQuery}
-            inputQuery={setQuery}
-            disableDelay={loadingStatus === LoadingStatus.DEMO_INIT}
-          />
-        )}
-        {loadingStatus === LoadingStatus.FAILED && (
-          <ErrorResult
-            query={query}
-            debugData={debugData}
-            exploreContext={exploreContext}
-            queryResult={queryResult}
-            userMessage={userMessage}
-          />
-        )}
-        {loadingStatus === LoadingStatus.LOADING && (
-          <div>
-            <Spinner isOpen={true} />
-          </div>
-        )}
-        {loadingStatus === LoadingStatus.DEMO_INIT && (
-          <div className="row explore-charts">
-            <SearchSection
-              query={query}
-              debugData={null}
-              exploreContext={null}
+    <ThemeProvider theme={theme}>
+      <RawIntlProvider value={intl}>
+        <Container className="explore-container">
+          {props.isDemo && (
+            <AutoPlay
+              autoPlayQuery={autoPlayQuery}
+              inputQuery={(query): void => {
+                setQuery(query);
+                setStoreQueryString(query);
+              }}
+              disableDelay={loadingStatus === LoadingStatus.DEMO_INIT}
             />
-          </div>
-        )}
-        {loadingStatus === LoadingStatus.SUCCESS && (
-          <SuccessResult
-            query={query}
-            debugData={debugData}
-            exploreContext={exploreContext}
-            queryResult={queryResult}
-            pageMetadata={pageMetadata}
-            userMessage={userMessage}
-          />
-        )}
-      </Container>
-    </RawIntlProvider>
+          )}
+          {loadingStatus === LoadingStatus.FAILED && (
+            <ErrorResult
+              query={query}
+              debugData={debugData}
+              exploreContext={exploreContext}
+              queryResult={queryResult}
+              userMessage={userMessage}
+              hideHeaderSearchBar={props.hideHeaderSearchBar}
+            />
+          )}
+          {loadingStatus === LoadingStatus.LOADING && (
+            <div>
+              <Spinner isOpen={true} />
+            </div>
+          )}
+          {loadingStatus === LoadingStatus.SUCCESS && (
+            <SuccessResult
+              query={query}
+              debugData={debugData}
+              exploreContext={exploreContext}
+              queryResult={queryResult}
+              pageMetadata={pageMetadata}
+              highlightPageMetadata={highlightPageMetadata}
+              facetSelector={highlightFacet}
+              userMessage={userMessage}
+              hideHeaderSearchBar={props.hideHeaderSearchBar}
+            />
+          )}
+        </Container>
+      </RawIntlProvider>
+    </ThemeProvider>
   );
 
-  function isFulfillDataValid(fulfillData: any): boolean {
-    if (!fulfillData) {
-      return false;
+  /**
+   * Update the page content with the given metadata.
+   *
+   * This function updates the page metadata and highlight page metadata
+   * based on the provided parameters. If no highlight page metadata is
+   * provided, it sets the highlight page metadata to null.
+   *
+   * @param mainPageMetadata The main page metadata to set
+   * @param highlightPageMetadata Optional highlight page metadata to set
+   */
+  function updatePageMetadata(
+    mainPageMetadata: SubjectPageMetadata,
+    highlightPageMetadata?: SubjectPageMetadata
+  ): void {
+    setPageMetadata(mainPageMetadata);
+    if (highlightPageMetadata) {
+      setHighlightPageMetadata(highlightPageMetadata);
+    } else {
+      setHighlightPageMetadata(null);
     }
-    const hasPlace = fulfillData["place"] && fulfillData["place"]["dcid"];
-    // Fulfill data needs to have either a place or entities
-    return hasPlace || fulfillData["entities"];
   }
 
-  function processFulfillData(fulfillData: any, shouldSetQuery: boolean): void {
+  /**
+   * Process the fulfill data from the search API response.
+   *
+   * This processes the fulfill data by setting up page metadata, debug data, and user
+   * messages for rendering the explore page. However, if the fulfill response only
+   * contains place information, a page overview configuration, but no charts, it will
+   * redirect to /place/{placeDcid} instead.
+   *
+   * @param fulfillData The fulfill data from the search API response
+   * @param userQuery The user's search query
+   */
+  function processFulfillData(
+    /* eslint-disable-next-line */
+    fulfillData: any,
+    pageMetadata: SubjectPageMetadata,
+    allowRedirect: boolean,
+    userQuery?: string,
+    isHighlight?: boolean
+  ): void {
     setDebugData(fulfillData["debug"]);
+    setStoreDebugData(fulfillData["debug"]);
     const userMessage = {
       msgList: fulfillData["userMessages"] || [],
       showForm: !!fulfillData["showForm"],
     };
-    if (!isFulfillDataValid) {
+    if (!isFulfillDataValid(fulfillData)) {
       setUserMessage(userMessage);
       setLoadingStatus(LoadingStatus.FAILED);
       return;
     }
-    const mainPlace = {
-      dcid: fulfillData["place"]["dcid"],
-      name: fulfillData["place"]["name"],
-      types: [fulfillData["place"]["place_type"]],
-    };
-    const relatedThings = fulfillData["relatedThings"] || {};
-    const pageMetadata: SubjectPageMetadata = {
-      place: mainPlace,
-      places: fulfillData["places"],
-      pageConfig: fulfillData["config"],
-      childPlaces: relatedThings["childPlaces"],
-      peerPlaces: relatedThings["peerPlaces"],
-      parentPlaces: relatedThings["parentPlaces"],
-      parentTopics: relatedThings["parentTopics"],
-      childTopics: relatedThings["childTopics"],
-      peerTopics: relatedThings["peerTopics"],
-      exploreMore: relatedThings["exploreMore"],
-      mainTopics: relatedThings["mainTopics"],
-      sessionId: "session" in fulfillData ? fulfillData["session"]["id"] : "",
-    };
+    let isPendingRedirect = false;
     if (
+      !isHighlight &&
       pageMetadata &&
       pageMetadata.pageConfig &&
       pageMetadata.pageConfig.categories
     ) {
+      isPendingRedirect =
+        allowRedirect && shouldSkipPlaceOverview(pageMetadata);
+      if (isPendingRedirect) {
+        const placeDcid = pageMetadata.place.dcid;
+        // If the user has a query, append it to the url
+        const url = `/place/${placeDcid}${userQuery ? `?q=${userQuery}` : ""}`;
+        // Localize the url to maintain the current page's locale.
+        const localizedUrl = localizeLink(url);
+        window.location.replace(localizedUrl);
+      }
       // Note: for category links, we only use the main-topic.
       for (const category of pageMetadata.pageConfig.categories) {
         if (category.dcid) {
@@ -229,119 +282,237 @@ export function App(props: { isDemo: boolean }): JSX.Element {
         }
       }
       if (
-        shouldSetQuery &&
+        !userQuery &&
         !_.isEmpty(pageMetadata.mainTopics) &&
-        pageMetadata.place.name
+        pageMetadata.places.length > 0
       ) {
+        // If there are multiple places, join them with commas and "and".
+        const placeNames = pageMetadata.places?.map((place) => place.name);
+        const inPlaces =
+          placeNames?.length > 1
+            ? intl.formatMessage(messages.inPlacesAndLastPlace, {
+                places: placeNames.slice(0, -1).join(", "),
+                lastPlace: placeNames[placeNames.length - 1] || "",
+              })
+            : intl.formatMessage(messages.inPlace, {
+                place: placeNames[0] || "",
+              });
         if (
           pageMetadata.mainTopics.length == 2 &&
           pageMetadata.mainTopics[0].name &&
           pageMetadata.mainTopics[1].name
         ) {
-          const q = `${pageMetadata.mainTopics[0].name} vs. ${pageMetadata.mainTopics[1].name} in ${pageMetadata.place.name}`;
+          const q = `${pageMetadata.mainTopics[0].name} vs. ${pageMetadata.mainTopics[1].name} ${inPlaces}`;
           setQuery(q);
+          setStoreQueryString(q);
         } else if (pageMetadata.mainTopics[0].name) {
-          const q = `${pageMetadata.mainTopics[0].name} in ${pageMetadata.place.name}`;
+          const q = `${pageMetadata.mainTopics[0].name} ${inPlaces}`;
           setQuery(q);
+          setStoreQueryString(q);
         }
       }
     }
     savedContext.current = fulfillData["context"] || [];
-    setPageMetadata(pageMetadata);
     setUserMessage(userMessage);
-    setQueryResult({
-      place: mainPlace,
+    const queryResult = {
+      place: pageMetadata.place,
       config: pageMetadata.pageConfig,
       svSource: fulfillData["svSource"],
       placeSource: fulfillData["placeSource"],
       placeFallback: fulfillData["placeFallback"],
       pastSourceContext: fulfillData["pastSourceContext"],
       sessionId: pageMetadata.sessionId,
-    });
-    setLoadingStatus(LoadingStatus.SUCCESS);
+    };
+    setQueryResult(queryResult);
+    setStoreQueryResult(queryResult);
+    setLoadingStatus(
+      isPendingRedirect ? LoadingStatus.LOADING : LoadingStatus.SUCCESS
+    );
   }
 
-  function handleHashChange(): void {
+  async function handleHashChange(): Promise<void> {
     setLoadingStatus(LoadingStatus.LOADING);
-    const hashParams = queryString.parse(window.location.hash);
-    const query =
-      getSingleParam(hashParams[URL_HASH_PARAMS.QUERY]) ||
-      getSingleParam(hashParams[URL_HASH_PARAMS.DEPRECATED_QUERY]);
-    const topic = getSingleParam(hashParams[URL_HASH_PARAMS.TOPIC]);
-    const place = getSingleParam(hashParams[URL_HASH_PARAMS.PLACE]);
-    const dc = getSingleParam(hashParams[URL_HASH_PARAMS.DC]);
-    const idx = getSingleParam(hashParams[URL_HASH_PARAMS.IDX]);
-    const disableExploreMore = getSingleParam(
-      hashParams[URL_HASH_PARAMS.DISABLE_EXPLORE_MORE]
-    );
-    const detector = getSingleParam(hashParams[URL_HASH_PARAMS.DETECTOR]);
-    const llmApi = getSingleParam(hashParams[URL_HASH_PARAMS.LLM_API]);
-    const testMode = getSingleParam(hashParams[URL_HASH_PARAMS.TEST_MODE]);
-    const i18n = getSingleParam(hashParams[URL_HASH_PARAMS.I18N]);
-    const defaultPlace = getSingleParam(
-      hashParams[URL_HASH_PARAMS.DEFAULT_PLACE]
-    );
-    const mode = getSingleParam(hashParams[URL_HASH_PARAMS.MODE]);
-    let client = getSingleParam(hashParams[URL_HASH_PARAMS.CLIENT]);
-    const reranker = getSingleParam(hashParams[URL_HASH_PARAMS.RERANKER]);
+    let hashParams: Record<string, string | string[]>;
+    if (window.location.hash) {
+      hashParams = queryString.parse(window.location.hash);
+    } else {
+      hashParams = Object.fromEntries(
+        new URLSearchParams(window.location.search)
+      );
+    }
 
-    let fulfillmentPromise: Promise<any>;
+    let client = getSingleParam(hashParams[URL_HASH_PARAMS.CLIENT]);
+    const urlHashParams: UrlHashParams = extractUrlHashParams(hashParams);
+    const query = urlHashParams.query;
+
+    let topicsToUse = toApiList(urlHashParams.topic || DEFAULT_TOPIC);
+    const fsm = {
+      date: urlHashParams.date,
+      facetMetadata: urlHashParams.facetMetadata,
+    };
+    setHighlightFacet(fsm);
+
+    let places = [];
+    if (!urlHashParams.place) {
+      places = [DEFAULT_PLACE];
+    } else if (urlHashParams.place.includes(URL_DELIM)) {
+      places = toApiList(urlHashParams.place);
+    } else {
+      places = [urlHashParams.place];
+    }
+
+    const dataCommonsClient = getDataCommonsClient(null, WEBSITE_SURFACE);
+
+    let fulfillmentPromise: Promise<unknown>;
+    let highlightPromise: Promise<unknown>;
+
     const gaTitle = query
       ? `Q: ${query} - `
-      : topic
-      ? `T: ${topic} | P: ${place} - `
+      : topicsToUse
+      ? `T: ${topicsToUse} | P: ${places} - `
       : "";
+    /* eslint-disable camelcase */
     triggerGAEvent(GA_EVENT_PAGE_VIEW, {
       page_title: `${gaTitle}${document.title}`,
       page_location: window.location.href.replace("#", "?"),
+      [GA_PARAM_SOURCE]: urlHashParams.origin,
     });
-    if (query) {
+    /* eslint-enable camelcase */
+    if (query && !urlHashParams.topic && !urlHashParams.statVars) {
       client = client || CLIENT_TYPES.QUERY;
       setQuery(query);
+      setStoreQueryString(query);
       fulfillmentPromise = fetchDetectAndFufillData(
         query,
         savedContext.current,
-        dc,
-        idx,
-        disableExploreMore,
-        detector,
-        llmApi,
-        testMode,
-        i18n,
+        urlHashParams.dc,
+        urlHashParams.idx,
+        urlHashParams.disableExploreMore,
+        urlHashParams.detector,
+        urlHashParams.testMode,
+        urlHashParams.i18n,
         client,
-        defaultPlace,
-        mode,
-        reranker
+        urlHashParams.defaultPlace,
+        urlHashParams.mode,
+        urlHashParams.reranker,
+        urlHashParams.includeStopWords,
+        urlHashParams.maxTopics,
+        urlHashParams.maxTopicSvs,
+        urlHashParams.maxCharts
       )
         .then((resp) => {
-          processFulfillData(resp, false);
+          const mainPlace = extractMainPlace(resp);
+          const mainPageMetadata = extractMetadata(resp, mainPlace);
+          updatePageMetadata(mainPageMetadata);
+          processFulfillData(
+            resp,
+            mainPageMetadata,
+            /*allowRedirect=*/ true,
+            query
+          );
         })
         .catch(() => {
           setLoadingStatus(LoadingStatus.FAILED);
         });
     } else {
       client = client || CLIENT_TYPES.ENTITY;
-      setQuery("");
-      fulfillmentPromise = fetchFulfillData(
-        toApiList(place || DEFAULT_PLACE),
-        toApiList(topic || DEFAULT_TOPIC),
-        "",
-        [],
-        [],
-        dc,
-        [],
-        [],
-        disableExploreMore,
-        testMode,
-        i18n,
-        client
-      )
-        .then((resp) => {
-          processFulfillData(resp, true);
-        })
-        .catch(() => {
-          setLoadingStatus(LoadingStatus.FAILED);
+      setQuery(query || "");
+      setStoreQueryString(query || "");
+
+      let data = {};
+      if (urlHashParams.statVars) {
+        let statVars = [];
+        if (urlHashParams.statVars.includes(URL_DELIM)) {
+          statVars = toApiList(urlHashParams.statVars);
+        } else {
+          statVars = [urlHashParams.statVars];
+        }
+
+        data = await dataCommonsClient.webClient.getNodePropvalsIn({
+          dcids: statVars,
+          prop: "relevantVariable",
         });
+
+        const allTopics = [];
+        for (const sv of statVars) {
+          if (sv in data) {
+            for (const tpc of data[sv]) {
+              allTopics.push(tpc["dcid"]);
+            }
+          }
+        }
+        topicsToUse = allTopics;
+
+        highlightPromise = fetchFulfillData(
+          places,
+          statVars,
+          urlHashParams.dc,
+          urlHashParams.disableExploreMore,
+          urlHashParams.testMode,
+          urlHashParams.i18n,
+          client,
+          urlHashParams.chartType,
+          true // Skip related things
+        );
+      }
+      // Merge this with response above. Make calls in parallel
+      fulfillmentPromise = fetchFulfillData(
+        places,
+        topicsToUse,
+        urlHashParams.dc,
+        urlHashParams.disableExploreMore,
+        urlHashParams.testMode,
+        urlHashParams.i18n,
+        client,
+        null
+      );
+
+      Promise.all([highlightPromise, fulfillmentPromise]).then(
+        ([highlightResponse, fulfillResponse]) => {
+          let allowRedirect = true;
+          const mainPlace = extractMainPlace(fulfillResponse);
+          let mainPageMetadata = extractMetadata(fulfillResponse, mainPlace);
+
+          let highlightPageMetadataResp = extractMetadata(
+            highlightResponse,
+            mainPlace
+          );
+
+          if (highlightPageMetadataResp) {
+            // If we have a highlight response, prevent any place page redirection.
+            allowRedirect = false;
+            triggerGAEvent(GA_EVENT_HIGHLIGHT_CHART_INJECTED, {
+              [GA_PARAM_SOURCE]: urlHashParams.origin,
+              [GA_PARAM_STAT_VAR]: urlHashParams.statVars,
+              [GA_PARAM_CHART_TYPE]: urlHashParams.chartType,
+              [GA_PARAM_PLACE]: mainPlace.dcid,
+            });
+
+            // Remove duplicate block(s) from main page metadata that are already in the highlight page metadata.
+            mainPageMetadata = filterBlocksFromPageMetadata(
+              mainPageMetadata,
+              highlightPageMetadataResp.pageConfig.categories?.flatMap(
+                (category) => category.blocks || []
+              )
+            );
+
+            if (shouldSkipPlaceOverview(mainPageMetadata)) {
+              // If the main page metadata is just a place overview, this means it has no data. We can skip
+              // the main page metadata and just use the highlight page metadata.
+              mainPageMetadata = highlightPageMetadataResp;
+              highlightPageMetadataResp = null;
+            }
+          }
+
+          updatePageMetadata(mainPageMetadata, highlightPageMetadataResp);
+          processFulfillData(
+            fulfillResponse,
+            mainPageMetadata,
+            allowRedirect,
+            query
+          );
+        }
+      );
     }
     // Once current query processing is done, run the next autoplay query if
     // there are any more autoplay queries left.
@@ -356,17 +527,14 @@ export function App(props: { isDemo: boolean }): JSX.Element {
 const fetchFulfillData = async (
   places: string[],
   topics: string[],
-  placeType: string,
-  cmpPlaces: string[],
-  cmpTopics: string[],
   dc: string,
-  svgs: string[],
-  classificationsJson: any,
   disableExploreMore: string,
   testMode: string,
   i18n: string,
-  client: string
-) => {
+  client: string,
+  chartType: string,
+  skipRelatedThings = false
+): Promise<unknown> => {
   try {
     const argsMap = new Map<string, string>();
     if (testMode) {
@@ -378,19 +546,24 @@ const fetchFulfillData = async (
     if (client) {
       argsMap.set(URL_HASH_PARAMS.CLIENT, client);
     }
+    if (chartType) {
+      argsMap.set(URL_HASH_PARAMS.CHART_TYPE, chartType);
+    }
     const args = argsMap.size > 0 ? `?${generateArgsParams(argsMap)}` : "";
     const startTime = window.performance ? window.performance.now() : undefined;
-    const resp = await axios.post(`/api/explore/fulfill${args}`, {
-      dc,
-      entities: places,
-      variables: topics,
-      childEntityType: placeType,
-      comparisonEntities: cmpPlaces,
-      comparisonVariables: cmpTopics,
-      extensionGroups: svgs,
-      classifications: classificationsJson,
-      disableExploreMore,
-    });
+    const resp = await axios.post(
+      `/api/explore/fulfill${args}`,
+      {
+        dc,
+        entities: places,
+        variables: topics,
+        disableExploreMore,
+        skipRelatedThings,
+      },
+      {
+        headers: WEBSITE_SURFACE_HEADER,
+      }
+    );
     if (startTime) {
       const elapsedTime = window.performance
         ? window.performance.now() - startTime
@@ -417,51 +590,62 @@ const fetchDetectAndFufillData = async (
   idx: string,
   disableExploreMore: string,
   detector: string,
-  llmApi: string,
   testMode: string,
   i18n: string,
   client: string,
   defaultPlace: string,
   mode: string,
-  reranker: string
-) => {
-  const argsMap = new Map<string, string>();
-  if (detector) {
-    argsMap.set(URL_HASH_PARAMS.DETECTOR, detector);
+  reranker: string,
+  includeStopWords: string,
+  maxTopics: string,
+  maxTopicSvs: string,
+  maxCharts: string
+): Promise<unknown> => {
+  const fieldsMap = {
+    [URL_HASH_PARAMS.DETECTOR]: detector,
+    [URL_HASH_PARAMS.TEST_MODE]: testMode,
+    [URL_HASH_PARAMS.I18N]: i18n,
+    [URL_HASH_PARAMS.CLIENT]: client,
+    [URL_HASH_PARAMS.DEFAULT_PLACE]: defaultPlace,
+    [URL_HASH_PARAMS.MODE]: mode,
+    [URL_HASH_PARAMS.RERANKER]: reranker,
+    [URL_HASH_PARAMS.INCLUDE_STOP_WORDS]: includeStopWords,
+    [URL_HASH_PARAMS.IDX]: idx,
+    [URL_HASH_PARAMS.MAX_TOPICS]: maxTopics,
+    [URL_HASH_PARAMS.MAX_TOPIC_SVS]: maxTopicSvs,
+    [URL_HASH_PARAMS.MAX_CHARTS]: maxCharts,
+  };
+  // Construct query URL with parameters to the server API.
+  const queryURL = new URLSearchParams();
+  // Set query param 'q' first so that it appears first in the URL.
+  queryURL.set("q", query);
+  // Extract Search Params to queryURL.
+  const urlParams = extractFlagsToPropagate(window.location.href);
+  for (const [field, value] of urlParams.entries()) {
+    if (value) {
+      queryURL.set(field, value);
+    }
   }
-  if (llmApi) {
-    argsMap.set(URL_HASH_PARAMS.LLM_API, llmApi);
+  // Extract Hash Params to queryURL.
+  for (const [field, value] of Object.entries(fieldsMap)) {
+    if (value) {
+      queryURL.set(field, value);
+    }
   }
-  if (testMode) {
-    argsMap.set(URL_HASH_PARAMS.TEST_MODE, testMode);
-  }
-  if (i18n) {
-    argsMap.set(URL_HASH_PARAMS.I18N, i18n);
-  }
-  if (client) {
-    argsMap.set(URL_HASH_PARAMS.CLIENT, client);
-  }
-  if (defaultPlace) {
-    argsMap.set(URL_HASH_PARAMS.DEFAULT_PLACE, defaultPlace);
-  }
-  if (mode) {
-    argsMap.set(URL_HASH_PARAMS.MODE, mode);
-  }
-  if (reranker) {
-    argsMap.set(URL_HASH_PARAMS.RERANKER, reranker);
-  }
-  if (idx) {
-    argsMap.set(URL_HASH_PARAMS.IDX, idx);
-  }
-  const args = argsMap.size > 0 ? `&${generateArgsParams(argsMap)}` : "";
+
   try {
     const startTime = window.performance ? window.performance.now() : undefined;
     const resp = await axios.post(
-      `/api/explore/detect-and-fulfill?q=${query}${args}`,
+      `/api/explore/detect-and-fulfill?${queryURL.toString()}`,
       {
         contextHistory: savedContext,
         dc,
         disableExploreMore,
+      },
+      {
+        // passing in a header indiciating that the call is made from the website
+        // used in Mixer usage logs
+        headers: WEBSITE_SURFACE_HEADER,
       }
     );
     if (startTime) {

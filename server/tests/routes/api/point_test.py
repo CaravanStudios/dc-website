@@ -102,6 +102,7 @@ class TestApiPointWithin(unittest.TestCase):
                 'unitDisplayName': 'shortUnit'
             }
         },
+        "mixer_response_ids": []
     }
 
     def post_side_effect(url, data, _=None):
@@ -119,7 +120,8 @@ class TestApiPointWithin(unittest.TestCase):
 
       if url.endswith('/v2/node') and data == {
           'nodes': ['testUnit'],
-          'property': '->*'
+          'property': '->*',
+          'nextToken': ''
       }:
         return {
             'data': {

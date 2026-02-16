@@ -59,15 +59,6 @@ def get_project_id():
   return project_id
 
 
-def write_feedback(session_id: str, data: Dict):
-  project_id = get_project_id()
-  row_key = get_row_key(session_id, project_id)
-  table = current_app.config['NL_TABLE']
-  row = table.direct_row(row_key)
-  row.set_cell(_COLUMN_FAMILY, _COL_FEEDBACK.encode(), json.dumps(data))
-  table.mutate_rows([row])
-
-
 async def write_row(session_info: Dict, data: Dict, ctr: Dict):
   if not session_info.get('id', None):
     return
@@ -83,7 +74,7 @@ async def write_row(session_info: Dict, data: Dict, ctr: Dict):
       'website_hash': os.environ.get("WEBSITE_HASH"),
       'mixer_hash': mixer_version.get('gitHash', ''),
       'table': mixer_version.get('tables', ''),
-      'embeddings': dc.nl_embeddings_version_map()
+      'embeddings': dc.nl_server_config()
   }
   # Rely on timestamp in BT server
   row.set_cell(_COLUMN_FAMILY, _COL_PROJECT.encode(), project_id)
@@ -92,6 +83,8 @@ async def write_row(session_info: Dict, data: Dict, ctr: Dict):
   try:
     row.set_cell(_COLUMN_FAMILY, _COL_DATA.encode(), json.dumps(data))
   except TypeError as e:
+    if 'ERROR' not in ctr:
+      ctr['ERROR'] = {}
     ctr['ERROR']['FAILED_unserializable_data_dict'] = f'{e}'
     row.set_cell(_COLUMN_FAMILY, _COL_DATA.encode(),
                  json.dumps({'FATAL': f'{e}'}))

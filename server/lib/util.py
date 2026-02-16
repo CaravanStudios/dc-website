@@ -13,18 +13,25 @@
 # limitations under the License.
 
 import csv
-from datetime import date
-from datetime import datetime
+import datetime
+from functools import wraps
 import gzip
 import hashlib
+from itertools import groupby
 import json
 import logging
+from operator import itemgetter
 import os
+import re
 import time
 from typing import Dict, List, Set
 import urllib
 
+from flask import jsonify
 from flask import make_response
+from flask import request
+from google.cloud import storage
+from google.cloud.exceptions import NotFound
 from google.protobuf import text_format
 
 from server.config import subject_page_pb2
@@ -37,14 +44,23 @@ _ready_check_sleep_seconds = 5
 # This has to be in sync with static/js/shared/util.ts
 PLACE_EXPLORER_CATEGORIES = [
     "economics",
+    "economics_new",
     "health",
+    "health_new",
     "equity",
+    "equity_new",
     "crime",
+    "crime_new",
     "education",
+    "education_new",
     "demographics",
+    "demographics_new",
     "housing",
+    "housing_new",
     "environment",
+    "environment_new",
     "energy",
+    "energy_new",
 ]
 
 # key is topic_id, which should match the folder name under config/topic_page
@@ -74,7 +90,8 @@ UN_GEOJSON_PROP = 'geoJsonCoordinatesUN'
 # place + place type combination.
 # To generate cached geojson files, follow instructions/use the endpoint here:
 # https://github.com/chejennifer/website/blob/generateCacheGeojsons/server/routes/api/choropleth.py#L201-L273
-# TODO: add 'LatinAmericaAndCaribbean' and 'SubSaharanAfrica' for UN_GEOJSON_PROP.
+# To update the UN geojson files, follow instructions here:
+# https://github.com/datacommonsorg/data/tree/master/scripts/un/boundaries
 CACHED_GEOJSON_FILES = {
     "Earth": {
         "Country": {
@@ -290,14 +307,6 @@ def get_subject_page_config(filepath):
     return subject_page_config
 
 
-# Returns generated summaries for place explorer.
-def get_place_summaries():
-  filepath = os.path.join(get_repo_root(), "config", "summaries",
-                          "place_summaries.json")
-  with open(filepath, 'r') as f:
-    return json.load(f)
-
-
 # Returns topic pages loaded as SubjectPageConfig protos:
 # { topic_id: [SubjectPageConfig,...] }
 def get_topic_page_config():
@@ -382,6 +391,102 @@ def get_nl_no_percapita_vars():
       if sv and yn in ['n', 'no']:
         nopc_vars.add(sv)
     return nopc_vars
+
+
+def load_redirects() -> Dict[str, str]:
+  """Loads the redirects mapping from GCS."""
+  storage_client = storage.Client()
+  bucket_name = "datcom-website-config"
+  bucket = storage_client.get_bucket(bucket_name)
+  redirection_mapping = json.loads(
+      bucket.get_blob("redirects.json").download_as_bytes())
+  return redirection_mapping
+
+
+def get_feature_flag_bucket_name(environment: str) -> str:
+  """Returns the bucket name containing the feature flags."""
+  if environment in ['integration_test', 'test', 'webdriver', 'custom_test']:
+    env_for_bucket = 'autopush'
+  elif environment == 'production':
+    env_for_bucket = 'prod'
+  else:
+    env_for_bucket = environment
+  return 'datcom-website-' + env_for_bucket + '-resources'
+
+
+def load_feature_flags_from_gcs(environment: str):
+  """Loads the feature flags into app config."""
+  storage_client = storage.Client()
+  bucket_name = get_feature_flag_bucket_name(environment)
+  try:
+    bucket = storage_client.get_bucket(bucket_name)
+  except NotFound:
+    logging.error("Bucket not found: " + bucket_name)
+    return {}
+
+  blob = bucket.get_blob("feature_flags.json")
+  data = {}
+  if blob:
+    try:
+      data = json.loads(blob.download_as_bytes())
+    except json.JSONDecodeError:
+      logging.warning("Loading feature flags failed to decode JSON.")
+    except TypeError:
+      logging.warning("Loading feature flags encountered a TypeError.")
+  else:
+    logging.warning("Feature flag file not found in the bucket.")
+
+  return data
+
+
+def load_fallback_feature_flags(environment: str):
+  """Loads the fallback feature flags into the app config. We fallback to checked in flag configs per environment."""
+  environments_with_local_files = set(
+      ['local', 'autopush', 'dev', 'staging', 'production', 'custom'])
+  testing_environments = set(['integration_test', 'test', 'webdriver'])
+
+  if environment in testing_environments:
+    env_to_use = 'autopush'
+  elif environment == 'custom_test':
+    env_to_use = 'custom'
+  elif environment in environments_with_local_files:
+    env_to_use = environment
+  # techsoup custom flask env
+  elif environment == 'techsoup':
+    env_to_use = 'custom'
+    logging.info(f"Loading fallback feature flags from TechSoup environment: {env_to_use}")
+  else:
+    env_to_use = 'production'
+
+  filepath = os.path.join(get_repo_root(), "config", "feature_flag_configs",
+                          env_to_use + ".json")
+
+  with open(filepath, 'r', encoding="utf-8") as f:
+    data = json.load(f)
+  return data
+
+
+def load_feature_flags():
+  """Loads the feature flags into app config."""
+  environment = os.environ.get('FLASK_ENV')
+
+  environment_with_gcs = set(['dev', 'autopush', 'staging', 'production'])
+  data = None
+  if environment in environment_with_gcs:
+    data = load_feature_flags_from_gcs(environment)
+
+  if not data:
+    data = load_fallback_feature_flags(environment)
+
+  feature_flag_dict = {}
+  for flag in data:
+    feature_flag_dict[flag['name']] = {
+        'enabled': flag['enabled'],
+    }
+    if 'rollout_percentage' in flag:
+      feature_flag_dict[
+          flag['name']]['rollout_percentage'] = flag['rollout_percentage']
+  return feature_flag_dict
 
 
 # Returns a set of SVs that have percentage units.
@@ -474,11 +579,11 @@ def hash_id(user_id):
 def parse_date(date_string):
   parts = date_string.split("-")
   if len(parts) == 1:
-    return datetime.strptime(date_string, "%Y")
+    return datetime.datetime.strptime(date_string, "%Y")
   elif len(parts) == 2:
-    return datetime.strptime(date_string, "%Y-%m")
+    return datetime.datetime.strptime(date_string, "%Y-%m")
   elif len(parts) == 3:
-    return datetime.strptime(date_string, "%Y-%m-%d")
+    return datetime.datetime.strptime(date_string, "%Y-%m-%d")
   else:
     raise ValueError("Invalid date: %s", date_string)
 
@@ -491,10 +596,13 @@ def is_up(url: str):
     # Disable Bandit security check 310. http scheme is already checked above.
     # Codacity still calls out the error so disable the check.
     # https://bandit.readthedocs.io/en/latest/blacklists/blacklist_calls.html#b310-urllib-urlopen
-    urllib.request.urlopen(url)  # nosec B310
-    return True
+    code = urllib.request.urlopen(url).getcode()  # nosec B310
+    if code != 200:
+      return False
   except urllib.error.URLError:
     return False
+  logging.info("%s is up running", url)
+  return True
 
 
 def check_backend_ready(urls: List[str]):
@@ -530,16 +638,381 @@ def gzip_compress_response(raw_content, is_json):
   return response
 
 
-def fetch_highest_coverage(parent_entity: str,
-                           child_type: str,
-                           variables: List[str],
-                           all_facets: bool,
-                           facet_ids: List[str] = None):
+def flatten_obs_series_response(obs_series_response):
   """
-  Fetches the latest available data with the best coverage for the given a
-  parent entity, child type, variables, and facets. If multiple variables are
-  passed in, selects dates with highest coverage independently for each
-  variable.
+  Flatten the observation series response into a list of dictionaries.
+
+  This function processes an observation series response, extracting and
+  flattening the nested data structure into a simple list of dictionaries.
+  Each dictionary in the list represents a single observation with the
+  following keys: 'variable', 'entity', 'date', 'value', and 'facet'.
+
+  Example:
+  >>> obs_series_response = {
+          "byVariable": {
+              "Count_Person": {
+                  "byEntity": {
+                      "country/USA": {
+                          "orderedFacets": [
+                              {
+                                  "facetId": "2176550201",
+                                  "observations": [
+                                      {"date": "1900", "value": 76094000},
+                                      {"date": "1901", "value": 77584000}
+                                  ]
+                              }
+                          ]
+                      }
+                  }
+              }
+          }
+      }
+  >>> flatten_obs_series_response(obs_series_response)
+  [
+      {'date': '1900', 'entity': 'country/USA', 'facet': '2176550201', 'value': 76094000, 'variable': 'Count_Person'},
+      {'date': '1901', 'entity': 'country/USA', 'facet': '2176550201', 'value': 77584000, 'variable': 'Count_Person'}
+  ]
+  """
+  flattened_observations = []
+  for variable, variable_entry in obs_series_response["byVariable"].items():
+    for entity, variable_entity_entry in variable_entry["byEntity"].items():
+      for ordered_facet in variable_entity_entry.get('orderedFacets', []):
+        for observation in ordered_facet['observations']:
+          flattened_observations.append({
+              'date': observation['date'],
+              'entity': entity,
+              'facet': ordered_facet['facetId'],
+              'value': observation.get('value'),
+              'variable': variable
+          })
+  return flattened_observations
+
+
+def flattened_observations_to_dates_by_variable(
+    flattened_observations: List[dict]) -> List[dict]:
+  """
+  Group flattened observation data by variable, then date, then facet, and count entities for each facet.
+
+  This function takes a list of flattened observation dictionaries and organizes them into a nested
+  structure grouped by variable, date, and facet. The resulting structure provides counts of entities
+  for each facet on each date for each variable.
+
+  Example:
+  >>> flattened_observations = [
+          {'date': '1900', 'entity': 'country/USA', 'facet': '2176550201', 'value': 76094000, 'variable': 'Count_Person'},
+          {'date': '1900', 'entity': 'country/USA', 'facet': '2176550201', 'value': 76094000, 'variable': 'Count_Person'},
+          {'date': '1901', 'entity': 'country/USA', 'facet': '2176550201', 'value': 77584000, 'variable': 'Count_Person'},
+          {'date': '1901', 'entity': 'country/CAN', 'facet': '2176550201', 'value': 5500000, 'variable': 'Count_Person'}
+      ]
+  >>> flattened_observations_to_dates_by_variable(flattened_observations)
+  [
+      {
+          'variable': 'Count_Person',
+          'observationDates': [
+              {
+                  'date': '1900',
+                  'entityCount': [
+                      {
+                          'facet': '2176550201',
+                          'count': 2
+                      }
+                  ]
+              },
+              {
+                  'date': '1901',
+                  'entityCount': [
+                      {
+                          'facet': '2176550201',
+                          'count': 2
+                      }
+                  ]
+              }
+          ]
+      }
+  ]
+  """
+  # Final result is grouped by variable, then date, then facet, then count.
+  dates_by_variable = []
+  flattened_observations.sort(key=itemgetter('variable'))
+  # Group by variable
+  for variable_key, observations_for_variable_group in groupby(
+      flattened_observations, key=itemgetter('variable')):
+    dates_by_variable_item = {'variable': variable_key, 'observationDates': []}
+    dates_by_variable.append(dates_by_variable_item)
+    observations_for_variable = list(observations_for_variable_group)
+    observations_for_variable.sort(key=itemgetter('date'))
+    # Group by date
+    for date_key, observations_for_date_group in groupby(
+        observations_for_variable, key=itemgetter('date')):
+      observation_dates_item = {'date': date_key, 'entityCount': []}
+      dates_by_variable_item['observationDates'].append(observation_dates_item)
+      observations_for_date = list(observations_for_date_group)
+      observations_for_date.sort(key=itemgetter('facet'))
+      # Group by facet
+      for facet_key, observations_for_facet_group in groupby(
+          observations_for_date, key=itemgetter('facet')):
+        # Count all records iwth this variable, date, and facet
+        entity_count_item = {
+            'count': len(list(observations_for_facet_group)),
+            'facet': facet_key
+        }
+        observation_dates_item['entityCount'].append(entity_count_item)
+  return dates_by_variable
+
+
+def get_series_dates_from_entities(entities: List[str], variables: List[str]):
+  """
+  Get observation series dates by place DCIDs and variables.
+
+  This function retrieves observation series data for the specified entities and variables,
+  flattens the data, and then organizes it by variable, date, and facet. The result includes
+  the grouped observation dates and the facets information from the observation series response.
+
+  Parameters:
+  entities (List[str]): A list of entity DCIDs (place identifiers) for which to retrieve data.
+  variables (List[str]): A list of variable names to retrieve data for.
+
+  Returns:
+  dict: A dictionary with two keys:
+        - 'datesByVariable' (List[dict]): A list of dictionaries where each dictionary contains:
+            - 'variable' (str): The variable dcid.
+            - 'observationDates' (List[dict]): A list of dictionaries for each date, each containing:
+                - 'date' (str): The date of the observation.
+                - 'entityCount' (List[dict]): A list of dictionaries for each facet, each containing:
+                    - 'facet' (str): The facet ID.
+                    - 'count' (int): The number of entities for this facet on this date.
+        - 'facets' (dict): The facets information from the observation series response.
+
+  Example:
+  >>> entities = ["country/USA", "country/CAN"]
+  >>> variables = ["Count_Person", "Count_Household"]
+  >>> result = get_series_dates_from_entities(entities, variables)
+  >>> print(result)
+  {
+      'datesByVariable': [
+          {
+              'variable': 'Count_Person',
+              'observationDates': [
+                  {
+                      'date': '1900',
+                      'entityCount': [
+                          {
+                              'facet': '2176550201',
+                              'count': 1
+                          }
+                      ]
+                  },
+                  {
+                      'date': '1901',
+                      'entityCount': [
+                          {
+                              'facet': '2176550201',
+                              'count': 1
+                          }
+                      ]
+                  }
+              ]
+          },
+          {
+              'variable': 'Count_Household',
+              'observationDates': [
+                  {
+                      'date': '1900',
+                      'entityCount': [
+                          {
+                              'facet': '2176550202',
+                              'count': 1
+                          }
+                      ]
+                  },
+                  {
+                      'date': '1901',
+                      'entityCount': [
+                          {
+                              'facet': '2176550202',
+                              'count': 1
+                          }
+                      ]
+                  }
+              ]
+          }
+      ],
+      'facets': {
+          '2176550201': {
+            'importName': 'CensusACS5YearSurvey_SubjectTables_S0101',
+            'measurementMethod': 'CensusACS5yrSurveySubjectTable',
+            'provenanceUrl': 'https://data.census.gov/table?q=S0101:+Age+and+Sex&tid=ACSST1Y2022.S0101'
+          },
+          '2176550202': {
+            'importName': 'CensusACS5YearSurvey_SubjectTables_S2602',
+            'measurementMethod': 'CensusACS5yrSurveySubjectTable',
+            'provenanceUrl': 'https://data.census.gov/cedsci/table?q=S2602&tid=ACSST5Y2019.S2602'
+          }
+      }
+  }
+  """
+  obs_series_response = dc.obs_series(entities=entities, variables=variables)
+  flattened_observations = flatten_obs_series_response(obs_series_response)
+  dates_by_variable = flattened_observations_to_dates_by_variable(
+      flattened_observations)
+
+  result = {
+      'datesByVariable': dates_by_variable,
+      'facets': obs_series_response.get('facets', {})
+  }
+  return result
+
+
+def _get_highest_coverage_date(observation_dates_by_variable,
+                               max_dates_to_check: int,
+                               max_years_to_check: int) -> str | None:
+  """
+  Heuristic for fetching "latest date with highest coverage":
+  Choose the date with the most data coverage from either:
+  (1) last N observation dates
+  (2) M years from the most recent observation date
+  whichever set has more dates
+
+  Args:
+    observation_dates_by_variable: Part of "dc.get_series_dates" response
+      containing observation counts by variable, date and entity
+    facet_ids: (optional) Only consider observation counts from these facets
+    max_dates_to_check: Only consider entity counts going back this number of
+      observation groups
+    max_years_to_check: Only consider entity counts going back this number of
+      years
+  """
+  recent_date_counts_dict = {}
+  for observation_entity_counts_by_date in observation_dates_by_variable:
+    recent_date_counts = _get_recent_date_counts(
+        observation_entity_counts_by_date, max_dates_to_check,
+        max_years_to_check)
+    for date_count in recent_date_counts:
+      date_count_date = date_count["date"]
+      if not date_count_date in recent_date_counts_dict:
+        recent_date_counts_dict[date_count_date] = 0
+      recent_date_counts_dict[date_count_date] += date_count["count"]
+
+  highest_coverage_date = None
+  highest_count = 0
+  for coverage_date, count in recent_date_counts_dict.items():
+    if count > highest_count:
+      highest_count = count
+      highest_coverage_date = coverage_date
+  return highest_coverage_date
+
+
+def _get_recent_date_counts(observation_entity_counts_by_date,
+                            max_dates_to_check: int,
+                            max_years_to_check: int) -> List[Dict]:
+  # Get observation dates in descending order
+  descending_observation_dates = [
+      observation_date for observation_date in list(
+          reversed(observation_entity_counts_by_date.get(
+              'observationDates', [])))
+  ]
+  # Exclude erroneous data for particular variables with dates in the future
+  # TODO: Remove this check once data is corrected in b/327667797
+  if observation_entity_counts_by_date[
+      'variable'] in FILTER_FUTURE_OBSERVATIONS_FROM_VARIABLES:
+    todays_date = str(datetime.date.today())
+    descending_observation_dates = [
+        observation_date for observation_date in descending_observation_dates
+        if observation_date['date'] < todays_date
+    ]
+  if len(descending_observation_dates) == 0:
+    return []
+  # Heuristic to fetch the "max_dates_to_check" most recent
+  # observation dates or observation dates going back
+  # "max_years_to_check" years, whichever is greater
+  cutoff_year = str(datetime.date.today().year - max_years_to_check)
+  latest_observation_dates_from_year = [
+      o for o in descending_observation_dates if o['date'] > cutoff_year
+  ]
+  obs_dates_cutoff = max(len(latest_observation_dates_from_year),
+                         max_dates_to_check)
+  observation_dates = descending_observation_dates[:obs_dates_cutoff]
+
+  # finds the greatest entity (observation) count among the facets in the
+  # given list of observation dates
+  date_counts = []
+  for obs in observation_dates:
+    entity_counts = obs.get('entityCount', [])
+
+    count = 0
+    if entity_counts:
+      count = max(entity_counts,
+                  key=lambda item: item.get('count', 0)).get('count', 0)
+
+    date_counts.append({'date': obs.get('date'), 'count': count})
+
+  return date_counts
+
+
+def _filter_series_dates_by_facet(series_dates_response: Dict,
+                                  facet_ids: List[str]) -> Dict:
+  """
+    Filters a series dates response object in-place to keep only provided facets.
+
+    This function removes data for non-matching facets from each date's
+    entityCount, as well as removing the facet from the facet listing.
+
+    Args:
+      series_dates_response: The response object from a get_series_dates or
+        get_series_dates_from_entities call.
+      facet_ids: The facets that we want to include in the final data set.
+
+    Returns:
+      The mutated series_dates_response object containing only the data and
+      facets from the list of facets given.
+    """
+  facet_ids_set = set(facet_ids)
+  used_facets = set()
+  for var_data in series_dates_response.get("datesByVariable", []):
+    if "observationDates" in var_data:
+      filtered_observation_dates = []
+      for date_data in var_data["observationDates"]:
+        if "entityCount" in date_data:
+          filtered_entity_count_list = [
+              entity_count for entity_count in date_data["entityCount"]
+              if entity_count.get("facet") in facet_ids_set
+          ]
+          date_data["entityCount"] = filtered_entity_count_list
+
+          for entity_count in filtered_entity_count_list:
+            used_facets.add(entity_count.get("facet"))
+
+        if date_data.get("entityCount"):
+          filtered_observation_dates.append(date_data)
+
+      var_data["observationDates"] = filtered_observation_dates
+
+  if "facets" in series_dates_response:
+    series_dates_response["facets"] = {
+        fid: finfo
+        for fid, finfo in series_dates_response["facets"].items()
+        if fid in used_facets
+    }
+
+  return series_dates_response
+
+
+def fetch_highest_coverage(variables: List[str],
+                           all_facets: bool,
+                           entities: List[str] | None = None,
+                           parent_entity: str | None = None,
+                           child_type: str | None = None,
+                           facet_ids: List[str] | None = None):
+  """
+  Fetches the latest available data with the best coverage for the given
+  entities (list of entities OR (parent entity and child type)), variables, and
+  facets.
+
+  - If multiple variables are passed in, selects dates with the overall highest
+    coverage among all variables.
+  - If all_facets is True, return observations from all available facets.
+    Otherwise returns observations from a single facet.
+  - If facet_ids is set, only returns observations from those facets
 
   Response format:
   {
@@ -555,94 +1028,147 @@ def fetch_highest_coverage(parent_entity: str,
     }
   }
   """
+  if (entities is None) and ((parent_entity is None) or (child_type is None)):
+    raise ValueError(
+        "Must provide either 'entities' OR ('parent_entity' AND 'child_type') parameters to fetch_highest_coverage"
+    )
   MAX_DATES_TO_CHECK = 5
   MAX_YEARS_TO_CHECK = 5
-  point_responses = []
-  series_dates_response = dc.get_series_dates(parent_entity, child_type,
-                                              variables)
-  facet_ids_set = set(facet_ids or [])
-  for observation_entity_counts_by_date in series_dates_response[
-      'datesByVariable']:
-    # Each observation_entity_counts_by_date contains the observation counts by date
-    variable = observation_entity_counts_by_date['variable']
-    best_coverage_date = _get_highest_coverage_date(
-        observation_entity_counts_by_date=observation_entity_counts_by_date,
-        facet_ids=facet_ids_set,
-        max_dates_to_check=MAX_DATES_TO_CHECK,
-        max_years_to_check=MAX_YEARS_TO_CHECK)
-    if not best_coverage_date:
-      # No best coverage date means we couldn't find any variable observations
-      # Add a blank point response in this case
-      point_responses.append({'data': {variable: {}}})
-      continue
-    point_responses.append(
-        fetch.point_within_core(parent_entity, child_type, [variable],
-                                best_coverage_date, all_facets, facet_ids))
-  combined_point_response = {"facets": {}, "data": {}}
-  for point_response in point_responses:
-    combined_point_response["facets"].update(point_response.get("facets", {}))
-    combined_point_response["data"].update(point_response.get("data", {}))
-  return combined_point_response
+  if entities is not None:
+    series_dates_response = get_series_dates_from_entities(entities, variables)
+  else:
+    series_dates_response = dc.get_series_dates(parent_entity, child_type,
+                                                variables)
+  if facet_ids:
+    series_dates_response = _filter_series_dates_by_facet(
+        series_dates_response, facet_ids)
+
+  observation_dates_by_variable = series_dates_response['datesByVariable']
+  highest_coverage_date = _get_highest_coverage_date(
+      observation_dates_by_variable,
+      max_dates_to_check=MAX_DATES_TO_CHECK,
+      max_years_to_check=MAX_YEARS_TO_CHECK)
+
+  # If no highest coverage date is found, return an empty response
+  if not highest_coverage_date:
+    return {"data": {variable: {} for variable in variables}, "facets": {}}
+
+  # Return observations with the highest coverage date
+  if entities is not None:
+    point_response = fetch.point_core(entities, variables,
+                                      highest_coverage_date, all_facets)
+  else:
+    point_response = fetch.point_within_core(parent_entity, child_type,
+                                             variables, highest_coverage_date,
+                                             all_facets, facet_ids)
+  return point_response
 
 
-def _get_highest_coverage_date(observation_entity_counts_by_date,
-                               facet_ids: Set[str], max_dates_to_check: int,
-                               max_years_to_check: int) -> str | None:
+def post_body_cache_key():
   """
-  Heuristic for fetching "latest data with highest coverage":
-  Choose the date with the most data coverage from either:
-  (1) last N observation dates
-  (2) M years from the most recent observation date
-  whichever set has more dates
+  Builds flask cache key for GET and POST requests.
+
+  GET: Key is URL path + query string parameters. Example: '/test?key=value'
+  POST: (Requires Content-Type:application/json): Key is URL path + query string
+  + JSON body. Example: '/test?key=value,{"jsonkey":"jsonvalue"}'
+
+  """
+  full_path = request.full_path
+  if request.method == 'POST':
+    body_object = request.get_json()
+    post_body = json.dumps(body_object, sort_keys=True)
+    cache_key = f'{full_path},{post_body}'
+  else:
+    cache_key = full_path
+  return cache_key
+
+
+def log_execution_time(func):
+  """
+  Decorator that logs the execution time of a Flask route.
+  """
+
+  @wraps(func)
+  def wrapper(*args, **kwargs):
+    start_time = time.time()
+    response = func(*args, **kwargs)
+    end_time = time.time()
+    execution_time = end_time - start_time
+    logging.info(
+        f"Route {request.method} {request.path} took {execution_time:.4f} seconds to complete."
+    )
+    return response
+
+  return wrapper
+
+
+def error_response(message, status_code=400):
+  """
+  Generate a JSON error response payload.
 
   Args:
-    observation_entity_counts_by_date: Part of "dc.get_series_dates" response
-      containing variable observation counts by date and entity
-    facet_ids: (optional) Only consider observation counts from these facets
-    max_dates_to_check: Only consider entity counts going back this number of
-      observation groups
-    max_years_to_check: Only consider entity counts going back this number of
-      years
-  """
-  # Get observation dates in descending order
-  descending_observation_dates = [
-      observation_date for observation_date in list(
-          reversed(observation_entity_counts_by_date.get(
-              'observationDates', [])))
-  ]
-  # Exclude erroneous data for particular variables with dates in the future
-  # TODO: Remove this check once data is corrected in b/327667797
-  if observation_entity_counts_by_date[
-      'variable'] in FILTER_FUTURE_OBSERVATIONS_FROM_VARIABLES:
-    todays_date = str(date.today())
-    descending_observation_dates = [
-        observation_date for observation_date in descending_observation_dates
-        if observation_date['date'] < todays_date
-    ]
-  if len(descending_observation_dates) == 0:
-    return None
-  # Heuristic to fetch the "max_dates_to_check" most recent
-  # observation dates or observation dates going back
-  # "max_years_to_check" years, whichever is greater
-  cutoff_year = str(date.today().year - max_years_to_check)
-  latest_observation_dates_from_year = [
-      o for o in descending_observation_dates if o['date'] > cutoff_year
-  ]
-  obs_dates_cutoff = max(len(latest_observation_dates_from_year),
-                         max_dates_to_check)
-  observation_dates = descending_observation_dates[:obs_dates_cutoff]
+      message (str): A human-readable message explaining the error.
+      status_code (int): The HTTP status code of the error. Default: 400.
 
-  # finds the greatest entity (observation) count among all facets in the
-  # given list of observation dates
-  date_counts = [{
-      'date':
-          obs['date'],
-      'count':
-          max([
-              entity_count_item for entity_count_item in obs['entityCount'] if
-              (len(facet_ids) == 0 or entity_count_item['facet'] in facet_ids)
-          ],
-              key=lambda item: item['count'])['count']
-  } for obs in observation_dates]
-  best_coverage = max(date_counts, key=lambda date_count: date_count['count'])
-  return best_coverage['date']
+  Returns:
+      response: A Flask `Response` object with a JSON payload and the given status code.
+  """
+  error_response = {
+      "status": "error",
+      "message": message,
+      "code": status_code,
+  }
+  return jsonify(error_response), status_code
+
+
+def add_the_if_needed(name):
+  """
+  Heuristic to determine if the name should be preceded by "the" in a sentence.
+  Used to generate the first sentence of the place summary. Works in English
+  only.
+
+  For example, "the United States" or "the United Kingdom", but not "Chicago" or "Illinois".
+
+  Args:
+    name: The name of the place
+
+  Returns:
+    The name with "the" prepended if needed, otherwise the original name.
+  """
+  needs_the = bool(
+      re.search(
+          r"\b(States|Republic|Kingdom|Emirates|Islands|Union|Federation|Netherlands|Congo)\b",
+          name))
+  return f"the {name}" if needs_the else name
+
+
+def split_camel_case(s):
+  """
+  Splits a camel case string into a list of words.
+
+  Example: "CongressionalDistrict" -> "congressional district"
+
+  Args:
+    s: The string to split
+
+  Returns:
+    A list of words
+  """
+  if not s:
+    return ""
+  parts = re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?=[A-Z]|$)', s)
+  return " ".join([part.lower() for part in parts])
+
+
+def capitalize_first_letter(s):
+  """
+  Capitalizes the first letter of the given string.
+
+  Example: "the United States" -> "The United States"
+
+  Note: Python's built-in str.capitalize() method downcases everything except
+  the first letter, so it would return "The united states" in the above case.
+  """
+  if len(s) == 0:
+    return s
+  return s[0].upper() + s[1:]

@@ -62,8 +62,6 @@ const defaultModalSelected: ModalSelected = Object.freeze({
   y: false,
 });
 
-const NUM_ENTITIES_EXISTENCE = 10;
-
 interface StatVarChooserProps {
   openSvHierarchyModalCallback: () => void;
   openSvHierarchyModal: boolean;
@@ -77,6 +75,8 @@ export function StatVarChooser(props: StatVarChooserProps): JSX.Element {
   // Records which two of the three statvars are wanted if a third statvar is selected.
   const [modalSelected, setModalSelected] = useState(defaultModalSelected);
   const [modalOpen, setModalOpen] = useState(false);
+  const [statVarWidgetIsCollapsed, setStatVarWidgetIsCollapsed] =
+    useState(true);
   const [samplePlaces, setSamplePlaces] = useState(
     getSamplePlaces(
       place.value.enclosingPlace.dcid,
@@ -92,10 +92,19 @@ export function StatVarChooser(props: StatVarChooserProps): JSX.Element {
     );
     setSamplePlaces(samplePlaces);
   }, [place.value.enclosedPlaces]);
-  const closeModal = () => {
+  const closeModal = (): void => {
     setThirdStatVar(emptyStatVar);
     setModalOpen(false);
   };
+
+  useEffect(() => {
+    if (place.value.enclosingPlace.dcid && place.value.enclosedPlaceType) {
+      // Show stat var widget if both a place and place type are selected
+      setStatVarWidgetIsCollapsed(false);
+    } else {
+      setStatVarWidgetIsCollapsed(true);
+    }
+  }, [place.value.enclosedPlaceType, place.value.enclosingPlace.dcid]);
 
   useEffect(() => {
     const statVarsToGetInfo = [];
@@ -157,17 +166,17 @@ export function StatVarChooser(props: StatVarChooserProps): JSX.Element {
         collapsible={true}
         svHierarchyType={StatVarHierarchyType.SCATTER}
         sampleEntities={samplePlaces}
-        deselectSVs={(svList: string[]) =>
+        deselectSVs={(svList: string[]): void =>
           svList.forEach((sv) => {
             removeStatVar(x, y, sv);
           })
         }
         selectedSVs={selectedSvs}
-        selectSV={(sv) => addStatVar(x, y, sv, setThirdStatVar, setModalOpen)}
-        numEntitiesExistence={Math.min(
-          NUM_ENTITIES_EXISTENCE,
-          samplePlaces.length
-        )}
+        selectSV={(sv): void =>
+          addStatVar(x, y, sv, setThirdStatVar, setModalOpen)
+        }
+        isCollapsedOverride={statVarWidgetIsCollapsed}
+        setIsCollapsedOverride={setStatVarWidgetIsCollapsed}
       />
       {/* Modal for selecting 2 stat vars when a third is selected */}
       <Modal isOpen={modalOpen} backdrop="static" id="statvar-modal">
@@ -187,7 +196,9 @@ export function StatVarChooser(props: StatVarChooserProps): JSX.Element {
                     type="radio"
                     name="statvar"
                     defaultChecked={modalSelected.x}
-                    onClick={() => setModalSelected({ x: true, y: false })}
+                    onClick={(): void =>
+                      setModalSelected({ x: true, y: false })
+                    }
                   />
                   {xTitle}
                 </Label>
@@ -199,7 +210,9 @@ export function StatVarChooser(props: StatVarChooserProps): JSX.Element {
                     type="radio"
                     name="statvar"
                     defaultChecked={modalSelected.y}
-                    onClick={() => setModalSelected({ x: false, y: true })}
+                    onClick={(): void =>
+                      setModalSelected({ x: false, y: true })
+                    }
                   />
                   {yTitle}
                 </Label>
@@ -210,7 +223,7 @@ export function StatVarChooser(props: StatVarChooserProps): JSX.Element {
         <ModalFooter>
           <Button
             color="primary"
-            onClick={() =>
+            onClick={(): void =>
               confirmStatVars(
                 x,
                 y,
@@ -247,7 +260,7 @@ function addStatVar(
   svDcid: string,
   setThirdStatVar: (statVar: StatVar) => void,
   setModalOpen: (open: boolean) => void
-) {
+): void {
   getStatVarInfo([svDcid])
     .then((info) => {
       const svInfo = info[svDcid] ? info[svDcid] : {};
@@ -304,7 +317,7 @@ function addStatVarHelper(
  * @param statVar
  * @param nodePath
  */
-function removeStatVar(x: AxisWrapper, y: AxisWrapper, svDcid: string) {
+function removeStatVar(x: AxisWrapper, y: AxisWrapper, svDcid: string): void {
   const statVarX = x.value.statVarDcid;
   const statVarY = y.value.statVarDcid;
   if (statVarX === svDcid) {

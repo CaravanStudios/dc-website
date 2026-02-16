@@ -16,7 +16,7 @@ from server.app_env import _base
 
 
 class Config(_base.Config):
-  GA_ACCOUNT = 'G-Y6ZXZ9JK3H'
+  GOOGLE_ANALYTICS_TAG_ID = 'G-Y6ZXZ9JK3H'
   GCS_BUCKET = 'datcom-website-autopush-resources'
   LOG_QUERY = True
   SHOW_TOPIC = True
@@ -24,3 +24,9 @@ class Config(_base.Config):
   USE_LLM = True
   HIDE_DEBUG = False
   USE_MEMCACHE = False
+  ENABLE_BQ = True
+  LOG_DC_REQUEST_PAYLOAD = True
+  LOG_DC_REQUEST_PAYLOAD_PERCENTAGE = 100
+  DISABLE_CRAWLERS = True
+  ENABLE_EMBEDDINGS_PLAYGROUND = True
+  ENABLE_DATAGEMMA_EVAL_TOOLS = True

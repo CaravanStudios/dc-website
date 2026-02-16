@@ -22,13 +22,13 @@ from enum import Enum
 from enum import IntEnum
 from typing import Dict, List
 
-from server.lib.explore.params import QueryMode
 from server.lib.nl.common import counters as ctr
 from server.lib.nl.detection.types import ContainedInPlaceType
 from server.lib.nl.detection.types import Detection
 from server.lib.nl.detection.types import Entity
 from server.lib.nl.detection.types import NLClassifier
 from server.lib.nl.detection.types import Place
+from server.lib.nl.explore.params import QueryMode
 from shared.lib.detected_variables import MultiVarCandidates
 
 
@@ -81,6 +81,14 @@ class ChartType(IntEnum):
   RANKED_TIMELINE_COLLECTION = 7
   ANSWER = 8
   ENTITY_OVERVIEW = 9
+
+  @staticmethod
+  def from_string(chart_type_str: str):
+    """Fetch the ChartType from a string with the same value."""
+    try:
+      return ChartType[chart_type_str]
+    except KeyError:
+      raise ValueError(f"Invalid ChartType string: {chart_type_str}")
 
 
 class FulfillmentResult(str, Enum):

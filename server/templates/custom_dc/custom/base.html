@@ -23,6 +23,7 @@
 
   Optional variables:
   locale: string, value for html lang attr
+  is_hide_header_search_bar: boolean, if true, the header will not contain a search bar. Default false.
   subpage_title: string, if specified, will be displayed in the header next to Data Commons
 
   Blocks to override:
@@ -30,37 +31,54 @@
   content - main page content
 -#}
 <!DOCTYPE html>
+{#- Hide the header search bar for custom DC pages. -#}
+{% set is_hide_header_search_bar = 'true' %}
 
 <html lang={{ locale }} id={{ page_id }}>
 
 <head>
-  {# Google Tag Manager #}
-  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-T94G38VL');</script>
-  {# End Google Tag Manager #}
+  {# Enable Google Analytics with cookieless tracking. #}
+  {% if GOOGLE_ANALYTICS_TAG_ID %}
+  <script async src="https://www.googletagmanager.com/gtag/js?id={{ GOOGLE_ANALYTICS_TAG_ID }}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', '{{ GOOGLE_ANALYTICS_TAG_ID }}', {
+      client_storage: 'none',
+      anonymize_ip: true,
+      {{ ("place_category: '{}',"|safe).format(place_category) if place_category is defined else "" }}
+      {{ ("send_page_view: false,"|safe) if manual_ga_pageview else "" }}
+    });
+  </script>
+  {% endif %}
+  <script>
+    globalThis.FEATURE_FLAGS = {{ config['FEATURE_FLAGS'] | tojson }};
+    globalThis.disableGoogleMaps = {{ config['DISABLE_GOOGLE_MAPS'] | tojson }};
+  </script>
 
-  <title>Data Commons for Civil Society</title>
+  <title>{{ title }} - Custom Data Commons</title>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <link rel="icon" href="/custom_dc/custom/favicon.png" type="image/png">
   <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;600&family=Roboto&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href={{url_for('static', filename='css/static.min.css', t=config['VERSION'])}}>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined">
   {% block head %}
   {% endblock %}
   {% if OVERRIDE_CSS_PATH %}
   <link href="{{ OVERRIDE_CSS_PATH }}" rel="stylesheet">
   {% endif %}
+  <script src={{url_for('static', filename='queryStore.js', t=config['VERSION'])}} async></script>
 </head>
 
 <body>
-  {# Google Tag Manager (noscript) #}
-  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-T94G38VL"
-    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-  {# End Google Tag Manager (noscript) #}
+  {# Set page locale. #}
+  <div id="metadata-base" class="d-none" 
+    data-hide-header-search-bar="{{ is_hide_header_search_bar }}"
+    data-locale="{{ locale }}"
+  >
+  </div>
 
   <div id="main">
     <header id="main-header">
@@ -68,14 +86,15 @@
         <div class="container-fluid">
           <div class="navbar-brand">
             {% if LOGO_PATH %}
-            <div id="main-header-logo">
+            <div class="main-header-logo">
                 <a href="{{ url_for('static.homepage') }}">
                   <img src="{{ LOGO_PATH }}" />
                 </a>
             </div>
             {% endif %}
-            <a id="brand-name-link" href="{{ url_for('static.homepage') }}"><div id="brand-name-title">Data Commons</div><div id="brand-name-subtitle">for Civil Society</div></a>
+            <a href="{{ url_for('static.homepage') }}">{{ NAME }}</a>
             {% if subpage_title %}
+            <span class="sep">•</span>
             <span>
               {% if subpage_url %}<a href="{{ subpage_url }}">{% endif %}
                 {{ subpage_title }}
@@ -89,23 +108,26 @@
           </button>
           <div class="collapse navbar-collapse justify-content-md-end" id="dc-main-nav">
             <ul class="navbar-nav float-md-right">
-              <li class="nav-item dropdown">
-                <a href="{{ url_for('place.place') }}" id="nav-place" class="nav-link-main "><span>Places</span></a>
-              </li>
                 <li class="nav-item dropdown">
-                    <a href="{{ url_for('tools.timeline') }}" id="nav-timeline" class="nav-link-main "><span>Timeline</span></a>
+                  <a href="{{ url_for('tools.visualization') }}#visType=timeline" id="nav-timeline" class="nav-link-main "><span>Timeline</span></a>
                 </li>
                 <li class="nav-item dropdown">
-                    <a href="{{ url_for('tools.scatter') }}" id="nav-scatter" class="nav-link-main"><span>Scatter</span> </a>
+                  <a href="{{ url_for('tools.visualization') }}#visType=scatter" id="nav-scatter" class="nav-link-main"><span>Scatter</span> </a>
                 </li>
                 <li class="nav-item dropdown">
-                    <a href="{{ url_for('tools.map') }}" id="nav-map" class="nav-link-main "><span>Map</span></a>
+                  <a href="{{ url_for('tools.visualization') }}#visType=map" id="nav-map" class="nav-link-main "><span>Map</span></a>
                 </li>
                 <li class="nav-item dropdown">
-                    <a href="{{ url_for('tools.download') }}" id="nav-map" class="nav-link-main "><span>Download</span></a>
+                  <a href="{{ url_for('tools.download') }}" id="nav-download" class="nav-link-main "><span>Download</span></a>
                 </li>
                 <li class="nav-item dropdown">
-                    <a href="{{ url_for('tools.stat_var') }}" id="nav-map" class="nav-link-main "><span>Variables</span></a>
+                  <a href="{{ url_for('tools.stat_var') }}" id="nav-var" class="nav-link-main "><span>Variables</span></a>
+                </li>
+                <li class="nav-item dropdown">
+                  <a href="{{ url_for('browser.browser_main') }}" id="nav-browser" class="nav-link-main "><span>Knowledge Graph</span></a>
+                </li>
+                <li class="nav-item dropdown">
+                  <a href="{{ url_for('explore.page') }}" id="nav-explorer" class="nav-link-main "><span>Search</span></a>
                 </li>
             </ul>
           </div>
@@ -120,17 +142,6 @@
 
     <footer id="main-footer">
       <div class="container">
-        <div class="row">
-          <div {# id="sub-footer" #} class="col-12">
-            <span>Powered by Google's <a href="https://www.datacommons.org" target="_blank">Data Commons</a></span>
-            <div class="float-md-right mt-3 mt-md-0">
-              {% block subfooter_extra %}{% endblock %}
-              <a href="https://www.techsoup.org/termsofuse" target="_blank">Terms of Use ›</a>
-              <a href="https://www.techsoup.org/privacypolicy" target="_blank">Privacy Policy ›</a>
-              <a href="mailto:datacommons@techsoup.org">Contact Us ›</a>
-            </div>
-          </div>
-        </div>
       </div>
     </footer>
   </div>

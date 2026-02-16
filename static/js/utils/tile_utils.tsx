@@ -21,31 +21,29 @@
 import axios from "axios";
 import * as d3 from "d3";
 import _ from "lodash";
-import React from "react";
 
-import { NL_SOURCE_REPLACEMENTS } from "../constants/app/nl_interface_constants";
+import { URL_HASH_PARAMS } from "../constants/app/explore_constants";
 import { SELF_PLACE_DCID_PLACEHOLDER } from "../constants/subject_page_constants";
 import { CSV_FIELD_DELIMITER } from "../constants/tile_constants";
+import { intl } from "../i18n/i18n";
+import { messages } from "../i18n/i18n_messages";
 import {
-  GA_EVENT_TILE_EXPLORE_MORE,
-  GA_PARAM_URL,
-  triggerGAEvent,
-} from "../shared/ga_events";
-import { PointApiResponse, SeriesApiResponse } from "../shared/stat_types";
+  PointApiResponse,
+  SeriesApiResponse,
+  StatMetadata,
+} from "../shared/stat_types";
 import { getStatsVarLabel } from "../shared/stats_var_labels";
 import { NamedTypedPlace, StatVarSpec } from "../shared/types";
-import { getCappedStatVarDate, urlToDisplayText } from "../shared/util";
+import { extractFlagsToPropagate, getCappedStatVarDate } from "../shared/util";
 import { getMatchingObservation } from "../tools/shared_util";
 import { EventTypeSpec, TileConfig } from "../types/subject_page_proto_types";
 import { stringifyFn } from "./axios";
-import { isNlInterface } from "./nl_interface_utils";
+import { getSeries, getSeriesWithin } from "./data_fetch_utils";
 import { getUnit } from "./stat_metadata_utils";
+import { addPerCapitaToTitle } from "./subject_page_utils";
 
 const DEFAULT_PC_SCALING = 100;
 const DEFAULT_PC_UNIT = "%";
-const ERROR_MSG_PC = "Sorry, could not calculate per capita.";
-const ERROR_MSG_DEFAULT = "Sorry, we do not have this data.";
-const NUM_FRACTION_DIGITS = 1;
 const SUPER_SCRIPT_DIGITS = "⁰¹²³⁴⁵⁶⁷⁸⁹";
 
 /**
@@ -165,7 +163,7 @@ export function getStatVarName(
  * vars in a statVarSpec collection.
  * Different from getStatVarName() in that if a stat var's name is not provided
  * in its spec, will try to query the name though an api call.
- * @param statVarSpecs specs of stat vars to get names for
+ * @param statVarSpec specs of stat vars to get names for
  * @param apiRoot api root to use for api
  * @param getProcessedName If provided, use this function to get the processed
  *        stat var names.
@@ -196,7 +194,7 @@ export async function getStatVarNames(
   });
 
   // Promise that returns an object where key is stat var dcid and value is name
-  let statVarNamesPromise;
+  let statVarNamesPromise: Promise<Record<string, string>>;
   // If all names were provided by statVarSpec or stats_var_labels.json
   // skip propval api call
   if (_.isEmpty(statVarDcids)) {
@@ -331,54 +329,6 @@ export function getTileEventTypeSpecs(
   return relevantEventSpecs;
 }
 
-/**
- * Gets the JSX element for displaying a list of sources.
- */
-export function TileSources(props: {
-  sources: Set<string> | string[];
-}): JSX.Element {
-  const { sources } = props;
-  if (!sources) {
-    return null;
-  }
-
-  const sourceList: string[] = Array.from(sources);
-  //const seenSourceText = new Set();
-  const sourcesJsx = sourceList.map((source, index) => {
-    // HACK for updating source for NL interface
-    let sourceUrl = source;
-    if (isNlInterface()) {
-      sourceUrl = NL_SOURCE_REPLACEMENTS[source] || source;
-    }
-    const sourceText = urlToDisplayText(sourceUrl);
-    return (
-      <span key={sourceUrl}>
-        {index > 0 ? ", " : ""}
-        <a
-          href={sourceUrl}
-          rel="noreferrer"
-          target="_blank"
-          title={sourceUrl}
-          onClick={(event) => {
-            triggerGAEvent(GA_EVENT_TILE_EXPLORE_MORE, {
-              [GA_PARAM_URL]: sourceUrl,
-            });
-            return true;
-          }}
-        >
-          {sourceText}
-        </a>
-        {globalThis.viaGoogle ? " via Google" : ""}
-      </span>
-    );
-  });
-  return (
-    <div className="sources" {...{ part: "source" }}>
-      Source: {sourcesJsx}
-    </div>
-  );
-}
-
 // Processes a unit string by converting "X^Y" to "X<superscript Y>"
 // e.g., km^2 will be km²
 function getProcessedUnit(unit: string): string {
@@ -402,11 +352,11 @@ export function getStatFormat(
   svSpec: StatVarSpec,
   statPointData?: PointApiResponse,
   statSeriesData?: SeriesApiResponse
-): { unit: string; scaling: number; numFractionDigits: number } {
+): { unit: string; scaling: number; numFractionDigits?: number } {
   const result = {
     unit: svSpec.unit,
     scaling: svSpec.scaling || 1,
-    numFractionDigits: NUM_FRACTION_DIGITS,
+    numFractionDigits: undefined,
   };
   // If unit was specified in the svSpec, use that unit
   if (result.unit) {
@@ -433,7 +383,7 @@ export function getStatFormat(
 
   let overrideConfig = null;
   if (statMetadata) {
-    const isComplexUnit = !!statMetadata.unit?.match(/\[.+ [0-9]+\]/);
+    const isComplexUnit = !!statMetadata.unit?.match(/\[.+ [0-9]+]/);
     // If complex unit, use the unit part to get the override config, otherwise
     // use the whole unit to get the override config.
     const unitStr = isComplexUnit
@@ -465,44 +415,157 @@ interface DenomInfo {
   value: number;
   date: string;
   source: string;
+  facet?: StatMetadata;
+  facetId?: string;
+}
+
+/**
+ * Fetches a set of responses for given denominator variables,
+  with one response for every facet requested. This is used when calculating per capita
+  results to match the facet of the numerator. 
+  Also returns a defaultDenom result that is used if a given facet does not have the requested variables.
+  @param denoms list of denominator variables to fetch
+  @param statResp a response for the numerator, from which we get facet information
+  @param apiRoot root API string passed into getSeries/getSeriesWithin 
+  @param useSeriesWithin boolean indiciating if getSeries or getSeriesWithin should be used
+  @param surface the DC product requesting this information (website, web components, etc.)
+  @param allPlaces list of place DCIDs to fetch if using getSeries
+  @param parentPlace parent place for getSeriesWithin
+  @param placeType subplace type for getSeriesWithin
+ */
+export async function getDenomResp(
+  denoms: string[],
+  statResp: PointApiResponse | SeriesApiResponse,
+  apiRoot: string,
+  useSeriesWithin: boolean,
+  surface: string,
+  // for series queries
+  allPlaces?: string[],
+  // parent and place type for collection queries
+  parentPlace?: string,
+  placeType?: string
+): Promise<[Record<string, SeriesApiResponse>, SeriesApiResponse | null]> {
+  // fetch the series for each facet
+  const denomPromises = [];
+  const facetIds =
+    !_.isEmpty(denoms) && statResp.facets ? Object.keys(statResp.facets) : [];
+
+  for (const facetId of facetIds) {
+    denomPromises.push(
+      useSeriesWithin
+        ? getSeriesWithin(
+            apiRoot,
+            parentPlace,
+            placeType,
+            denoms,
+            [facetId],
+            surface
+          )
+        : getSeries(
+            apiRoot,
+            allPlaces,
+            denoms,
+            [facetId],
+            null /* highlight facet */,
+            surface
+          )
+    );
+  }
+
+  // for the case when the facet used in the statResponse does not have the denom information, we use the standard denom
+  const defaultDenomPromise = _.isEmpty(denoms)
+    ? Promise.resolve(null)
+    : useSeriesWithin
+    ? getSeriesWithin(
+        apiRoot,
+        parentPlace,
+        placeType,
+        denoms,
+        null /* facetIds */,
+        surface
+      )
+    : getSeries(
+        apiRoot,
+        allPlaces,
+        denoms,
+        [],
+        null /* highlightFacet */,
+        surface
+      );
+
+  // organize results into a map from facet to API response
+  const denomsByFacet: Record<string, SeriesApiResponse> = {};
+  const denomResults = await Promise.all([
+    ...denomPromises,
+    defaultDenomPromise,
+  ]);
+
+  // The last element of denomResps is defaultDenomPromise
+  const defaultDenomData = denomResults.pop();
+
+  denomResults.forEach((resp, i) => {
+    // should only have one facet per resp because we pass in exactly one
+    const facetId = facetIds[i];
+    if (facetId) {
+      denomsByFacet[facetId] = resp;
+    }
+  });
+
+  return [denomsByFacet, defaultDenomData];
 }
 
 /**
  * Gets information needed to calculate per capita for a single stat data point.
  * Uses the denom value with the closest date to the mainStatDate and returns
- * null if no matching value is found or matching value is 0.
+ * null if no matching value is found or matching value is 0. If available, uses
+ * the denom value that comes from the same facet as the data point. Otherwise, the best
+ * general denom option is used.
  * @param svSpec the stat var spec of the data point to calculate per capita for
- * @param denomData population data to use for the calculation
+ * @param denomData map facet ID -> population data. If the facet used in the stat var spec
+ * has denominator data, we use information from that facet.
  * @param placeDcid place of the data point
  * @param mainStatDate date of the data point
- * @param mainStatUnit unit of the data point
+ * @param facetUsed facet used for the data point
+ * @param defaultDenomData If there isn't denominator data available for the facet used in
+ * svSpec, we use the default data that is fetched with no particular facet
  */
 export function getDenomInfo(
   svSpec: StatVarSpec,
-  denomData: SeriesApiResponse,
+  denomData: Record<string, SeriesApiResponse>,
   placeDcid: string,
-  mainStatDate: string
+  mainStatDate: string,
+  facetUsed?: string,
+  defaultDenomData?: SeriesApiResponse | null
 ): DenomInfo {
-  if (!denomData || !(svSpec.denom in denomData.data)) {
-    return null;
+  // find the matching denominator data if it exists, for the facet used in the numerator
+  let matchingDenomData = denomData?.[facetUsed];
+  let placeDenomData = matchingDenomData?.data?.[svSpec.denom]?.[placeDcid];
+
+  if (!placeDenomData || _.isEmpty(placeDenomData.series)) {
+    matchingDenomData = defaultDenomData;
+    placeDenomData = matchingDenomData?.data?.[svSpec.denom]?.[placeDcid];
   }
-  const placeDenomData = denomData.data[svSpec.denom][placeDcid];
+
+  // if there is no denom data at all, return null
   if (!placeDenomData || _.isEmpty(placeDenomData.series)) {
     return null;
   }
+
   const denomSeries = placeDenomData.series;
   const denomObs = getMatchingObservation(denomSeries, mainStatDate);
   if (!denomObs || !denomObs.value) {
     return null;
   }
-  let source = "";
-  if (denomData.facets[placeDenomData.facet]) {
-    source = denomData.facets[placeDenomData.facet].provenanceUrl;
-  }
+
+  const source =
+    matchingDenomData.facets[placeDenomData.facet]?.provenanceUrl ?? "";
+
   return {
     value: denomObs.value,
     date: denomObs.date,
     source,
+    facet: matchingDenomData?.facets?.[placeDenomData.facet],
+    facetId: placeDenomData?.facet,
   };
 }
 
@@ -512,21 +575,18 @@ export function getDenomInfo(
  */
 export function getNoDataErrorMsg(statVarSpec: StatVarSpec[]): string {
   return statVarSpec.findIndex((spec) => !!spec.denom) >= 0
-    ? ERROR_MSG_PC
-    : ERROR_MSG_DEFAULT;
+    ? intl.formatMessage(messages.perCapitaErrorMessage)
+    : intl.formatMessage(messages.noDataErrorMessage);
 }
 
 /**
- * Shows an error message in a container div
- * @param errorMsg the message to show
+ * Removes content from specified container
  * @param container the container div to show the message
  */
-export function showError(errorMsg: string, container: HTMLDivElement): void {
+export function clearContainer(container: HTMLDivElement): void {
   // Remove contents of the container
   const containerSelection = d3.select(container);
   containerSelection.selectAll("*").remove();
-  // Show error message in the container
-  containerSelection.html(errorMsg);
 }
 
 /**
@@ -554,7 +614,7 @@ export function getComparisonPlaces(
  * @param columnHeader CSV column header
  * @returns capitalized column header
  */
-export function transformCsvHeader(columnHeader: string) {
+export function transformCsvHeader(columnHeader: string): string {
   if (columnHeader.length === 0) {
     return columnHeader;
   }
@@ -573,13 +633,96 @@ export function transformCsvHeader(columnHeader: string) {
  * all dates set for a subject page config will have the same date
  *
  * @param variables stat var spec variables
+ * @param date optional override date string. When provided, this date is used
+ *             instead of the date from the first variable.
  * @returns first date found or undefined if stat var spec list is empty
  */
 export function getFirstCappedStatVarSpecDate(
-  variables: StatVarSpec[]
+  variables: StatVarSpec[],
+  date?: string
 ): string {
   if (variables.length === 0) {
     return "";
   }
-  return getCappedStatVarDate(variables[0].statVar, variables[0].date);
+  return getCappedStatVarDate(variables[0].statVar, date || variables[0].date);
+}
+
+/**
+ * Gets the description for a highlight tile given the tile config and block
+ * level denominator
+ *
+ * @param tile the tile config
+ * @param blockDenom the block level denominator
+ * @returns description for the highlight tile
+ */
+export function getHighlightTileDescription(
+  tile: TileConfig,
+  blockDenom?: string
+): string {
+  let description = tile.description.includes("${date}")
+    ? tile.description
+    : tile.description + " (${date})";
+  description = blockDenom ? addPerCapitaToTitle(description) : description;
+  return description;
+}
+
+/**
+ * Generates a hyperlink to the explore page for a given stat var, chart type, and place.
+ * @param statVarDcid The DCID of the statistical variable.
+ * @param chartType The type of chart.
+ * @param placeDcid The DCID of the place.
+ * @param facet Optional facet metadata.
+ */
+interface GetExploreLinkOptions {
+  apiRoot?: string;
+  chartType: string;
+  placeDcids: string[];
+  statVarSpecs: StatVarSpec[];
+  facetMetadata?: StatMetadata;
+}
+
+/**
+ * Generates a hyperlink to the explore page for a given set of parameters.
+ * @param options The options for generating the hyperlink.
+ */
+export function getExploreLink(options: GetExploreLinkOptions): string {
+  const { apiRoot, chartType, placeDcids, statVarSpecs, facetMetadata } =
+    options;
+  if (!statVarSpecs || statVarSpecs.length === 0) {
+    return "";
+  }
+  const sv = encodeURIComponent(
+    statVarSpecs.map((spec) => spec.statVar).join("___")
+  );
+  const places = encodeURIComponent(placeDcids.join("___"));
+  let hash = `${URL_HASH_PARAMS.STAT_VAR}=${sv}&${URL_HASH_PARAMS.CHART_TYPE}=${chartType}&${URL_HASH_PARAMS.PLACE}=${places}`;
+
+  const facet = facetMetadata;
+  if (facet) {
+    if (facet.importName) {
+      hash += `&${URL_HASH_PARAMS.IMPORT_NAME}=${encodeURIComponent(
+        facet.importName
+      )}`;
+    }
+    if (facet.measurementMethod) {
+      hash += `&${URL_HASH_PARAMS.MEASUREMENT_METHOD}=${encodeURIComponent(
+        facet.measurementMethod
+      )}`;
+    }
+    if (facet.observationPeriod) {
+      hash += `&${URL_HASH_PARAMS.OBSERVATION_PERIOD}=${encodeURIComponent(
+        facet.observationPeriod
+      )}`;
+    }
+    if (facet.scalingFactor) {
+      hash += `&${URL_HASH_PARAMS.SCALING_FACTOR}=${encodeURIComponent(
+        facet.scalingFactor
+      )}`;
+    }
+    if (facet.unit) {
+      hash += `&${URL_HASH_PARAMS.UNIT}=${encodeURIComponent(facet.unit)}`;
+    }
+  }
+  const urlParams = extractFlagsToPropagate(window.location.href);
+  return `${apiRoot || ""}/explore?${urlParams.toString()}#${hash}`;
 }

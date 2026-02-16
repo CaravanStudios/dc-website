@@ -2,9 +2,17 @@
 __pycache__/
 .pytest_cache
 *.pyc
+.venv*/
 .env/
-screenshots/*.png
-screenshots/screenshot_url.json
+.env_website/
+.env_nl/
+
+# Gemini
+.gemini/**
+.geminiignore
+!.gemini/
+!.gemini/config.yaml
+
 
 # Production static files
 **/dist/**
@@ -15,8 +23,13 @@ screenshots/screenshot_url.json
 # Local env.
 *.swp
 .vscode
+.idea
 !.vscode/launch.json
+.env
 .env.list
+custom_dc/.env-test
+build/techsoup_cdc_services/dev/.env.list
+secrets/
 
 # Mac
 .DS_Store
@@ -26,7 +39,6 @@ tmp/
 .air.toml
 
 # Kubernetes
-gke/config.yaml
 gke/endpoints.yaml
 gke/mci.yaml
 endpoints.yaml
@@ -71,6 +83,7 @@ experimental/sdg-static/datacommons/nl_interface.min.css
 
 # Custom DC data
 dc-data/
+custom_dc/env.list
 
 # Topic cache
 gen_ordered_list_for_topics.mcf
@@ -89,6 +102,24 @@ ft_final_v20230717230459.all-MiniLM-L6-v2/
 
 **/eval/**/result
 
+# CDC ignores
 custom_dc/sample/datacommons/**
+custom_dc/data/*.db
 
 .cache/
+
+**/*.egg-info
+*.egg-info
+
+# Custom DC dev and terraform ignores
+*.tfvars
+deploy/terraform-custom-datacommons/modules/backend.tf
+
+# NL tools ignores
+tools/nl/nl_metadata/.env
+
+# Gemini files
+GEMINI.md
+.gemini/
+# Webdriver recordings (tracked as tar.gz)
+server/tests/test_data/webdriver_recordings/

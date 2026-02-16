@@ -115,29 +115,29 @@ export function AppContextProvider(
     samplePlaces,
     isContextLoading,
     displayOptions,
-    setPlaces: (places) => {
+    setPlaces: (places): void => {
       shouldUpdateHash.current.push(true);
       setChildPlaceTypes(null);
       setSamplePlaces(null);
       setPlaces(places);
     },
-    setEnclosedPlaceType: (placeType) => {
+    setEnclosedPlaceType: (placeType): void => {
       shouldUpdateHash.current.push(true);
       setSamplePlaces(null);
       setEnclosedPlaceType(placeType);
     },
-    setStatVars: (statVars) => {
+    setStatVars: (statVars): void => {
       shouldUpdateHash.current.push(true);
       setStatVars(statVars);
     },
-    setVisType: (visType) => {
+    setVisType: (visType): void => {
       trackPageview(visType);
       shouldUpdateHash.current.push(true);
       setChildPlaceTypes(null);
       setSamplePlaces(null);
       setVisType(visType);
     },
-    setDisplayOptions: (displayOptions) => {
+    setDisplayOptions: (displayOptions): void => {
       shouldUpdateHash.current.push(true);
       setDisplayOptions(displayOptions);
     },
@@ -152,11 +152,13 @@ export function AppContextProvider(
     return params.get(paramKey) || "";
   }
 
-  function trackPageview(visType: string) {
+  function trackPageview(visType: string): void {
+    /* eslint-disable camelcase */
     triggerGAEvent(GA_EVENT_PAGE_VIEW, {
       page_title: `${visType} - ${document.title}`,
       page_location: `${window.location.pathname}/${visType}${window.location.hash}`,
     });
+    /* eslint-enable camelcase */
   }
 
   useEffect(() => {
@@ -185,13 +187,15 @@ export function AppContextProvider(
       visTypeConfig.getChildTypesFn || getEnclosedPlaceTypes;
     getChildTypesPromise(places[0], getChildTypesFn).then(
       (newChildPlaceTypes) => {
-        if (_.isEqual(newChildPlaceTypes, childPlaceTypes)) {
-          return;
-        }
-        setChildPlaceTypes(newChildPlaceTypes);
+        setChildPlaceTypes((prevChildPlaceTypes) => {
+          if (_.isEqual(newChildPlaceTypes, prevChildPlaceTypes)) {
+            return prevChildPlaceTypes;
+          }
+          return newChildPlaceTypes;
+        });
       }
     );
-  }, [places, visTypeConfig]);
+  }, [places, visTypeConfig, isContextLoading]);
 
   // When child place types updates, update the selected enclosed place type
   useEffect(() => {
@@ -215,7 +219,7 @@ export function AppContextProvider(
       shouldUpdateHash.current.push(false);
       setEnclosedPlaceType(newEnclosedPlaceType);
     }
-  }, [childPlaceTypes, isContextLoading]);
+  }, [childPlaceTypes, isContextLoading, enclosedPlaceType, visTypeConfig]);
 
   // when list of places, enclosed place type, or vis type changes, update the
   // list of sample places to use for sv hierarchy.
@@ -235,7 +239,7 @@ export function AppContextProvider(
         }
       );
     }
-  }, [places, enclosedPlaceType, visTypeConfig]);
+  }, [places, enclosedPlaceType, visTypeConfig, isContextLoading]);
 
   // when list of sample places used in the sv hierarchy changes, update the
   // list of selected stat vars
@@ -259,7 +263,7 @@ export function AppContextProvider(
         }
       }
     );
-  }, [samplePlaces, statVars]);
+  }, [samplePlaces, statVars, isContextLoading, visTypeConfig]);
 
   // when the vis type changes, update the list of places and list of stat vars
   // according to the config for that vis type.
@@ -275,7 +279,7 @@ export function AppContextProvider(
       shouldUpdateHash.current.push(false);
       setStatVars(statVars.slice(0, visTypeConfig.numSv));
     }
-  }, [visTypeConfig]);
+  }, [visTypeConfig, isContextLoading, places, statVars]);
 
   // when values in the context changes, update the url hash.
   useEffect(() => {
@@ -290,12 +294,24 @@ export function AppContextProvider(
       displayOptions
     );
     const currentHash = location.hash.replace("#", "");
+    const currentQueryString = location.search; // Propogate the current query string
     if (newHash && newHash !== currentHash) {
-      history.pushState({}, "", `/tools/visualization#${newHash}`);
+      history.pushState(
+        {},
+        "",
+        `/tools/visualization${currentQueryString}#${newHash}`
+      );
     }
     // For all values in this dependency array, setting the value should always
     // be preceded by shouldUpdateHash.current.push()
-  }, [places, enclosedPlaceType, statVars, visType, displayOptions]);
+  }, [
+    places,
+    enclosedPlaceType,
+    statVars,
+    visType,
+    displayOptions,
+    isContextLoading,
+  ]);
 
   return (
     <AppContext.Provider value={contextValue}>

@@ -21,7 +21,13 @@
 import axios from "axios";
 import * as d3 from "d3";
 import _ from "lodash";
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  ReactElement,
+  RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import ReactDOMServer from "react-dom/server";
 import { Card } from "reactstrap";
 
@@ -35,18 +41,25 @@ import {
 import { GeoJsonData, GeoJsonFeatureProperties } from "../../chart/types";
 import { ASYNC_ELEMENT_HOLDER_CLASS } from "../../constants/css_constants";
 import { USA_PLACE_DCID } from "../../shared/constants";
-import { FacetSelectorFacetInfo } from "../../shared/facet_selector";
+import { FacetSelectorFacetInfo } from "../../shared/facet_selector/facet_selector";
 import {
   GA_EVENT_TOOL_CHART_PLOT,
   GA_PARAM_PLACE_DCID,
   GA_PARAM_STAT_VAR,
   triggerGAEvent,
 } from "../../shared/ga_events";
+import { ObservationSpec } from "../../shared/observation_specs";
 import { NamedPlace } from "../../shared/types";
-import { loadSpinner, removeSpinner } from "../../shared/util";
+import {
+  getFacetMetadataFromFacetList,
+  getStatVarMetadataFromFacets,
+  loadSpinner,
+  removeSpinner,
+} from "../../shared/util";
 import { getStringOrNA } from "../../utils/number_utils";
 import { getDateRange } from "../../utils/string_utils";
-import { ToolChartFooter } from "../shared/tool_chart_footer";
+import { ToolChartFooter } from "../shared/vis_tools/tool_chart_footer";
+import { ToolChartHeader } from "../shared/vis_tools/tool_chart_header";
 import { isChildPlaceOf, shouldShowMapBoundaries } from "../shared_util";
 import { DisplayOptionsWrapper, PlaceInfo } from "./context";
 import { PlotOptions } from "./plot_options";
@@ -67,7 +80,18 @@ interface ChartPropsType {
   sources: Set<string>;
   svFacetId: Record<string, string>;
   facetList: FacetSelectorFacetInfo[];
+  facetListLoading: boolean;
+  facetListError: boolean;
   onSvFacetIdUpdated: (svFacetId: Record<string, string>) => void;
+  // A function passed through from the chart that handles the task
+  // of creating the embedding used in the download functionality.
+  handleEmbed?: () => void;
+  // A callback function passed through from the chart that will collate
+  // a set of observation specs relevant to the chart. These
+  // specs can be hydrated into API calls.
+  getObservationSpecs?: () => ObservationSpec[];
+  // A ref to the chart container element.
+  containerRef?: RefObject<HTMLElement>;
 }
 
 const DOT_REDIRECT_PREFIX = "/place/";
@@ -76,7 +100,7 @@ const MAP_LEGEND_CONTAINER_ID = "legend-container";
 const CONTAINER_ID = "chart";
 const DEBOUNCE_INTERVAL_MS = 30;
 
-export function Chart(props: ChartPropsType): JSX.Element {
+export function Chart(props: ChartPropsType): ReactElement {
   const svgContainerRef = useRef<HTMLDivElement>();
   const tooltipRef = useRef<HTMLDivElement>();
   const chartContainerRef = useRef<HTMLDivElement>();
@@ -109,7 +133,7 @@ export function Chart(props: ChartPropsType): JSX.Element {
       .catch(() => setGeoJsonFetched(true));
   }, []);
 
-  function replot() {
+  function replot(): void {
     if (!_.isEmpty(props.points)) {
       if (svgContainerRef.current) {
         clearSVGs();
@@ -139,11 +163,15 @@ export function Chart(props: ChartPropsType): JSX.Element {
       }
     }, DEBOUNCE_INTERVAL_MS);
     const resizeObserver = new ResizeObserver(debouncedHandler);
-    if (chartContainerRef.current) {
-      resizeObserver.observe(chartContainerRef.current);
+    // The value of chartContainerRef.current may change between setting the
+    // observe and unobserving during cleanup, so we store the current value
+    // in a variable.
+    const currentChartContainerElement = chartContainerRef.current;
+    if (currentChartContainerElement) {
+      resizeObserver.observe(currentChartContainerElement);
     }
     return () => {
-      resizeObserver.unobserve(chartContainerRef.current);
+      resizeObserver.unobserve(currentChartContainerElement);
       debouncedHandler.cancel();
     };
   }, [props, chartContainerRef, geoJsonFetched]);
@@ -162,8 +190,51 @@ export function Chart(props: ChartPropsType): JSX.Element {
     });
   }, [statVars[0], statVars[1], props.placeInfo.enclosingPlace.dcid]);
 
+  // Get stat var metadata to use in metadata modal
+  const { statVarToFacets, statVarSpecs } = getStatVarMetadataFromFacets(
+    props.facetList,
+    props.svFacetId,
+    props.xPerCapita,
+    props.xUnit,
+    props.xLog,
+    props.yPerCapita,
+    props.yUnit,
+    props.yLog
+  );
+
+  // Calculate date ranges for each stat var to use in metadata modal
+  const statVarDateRanges = {};
+  if (props.facetList.length >= 2) {
+    const xDcid = props.facetList[0].dcid;
+    const yDcid = props.facetList[1].dcid;
+    let minXDate = "";
+    let maxXDate = "";
+    let minYDate = "";
+    let maxYDate = "";
+
+    Object.values(props.points).forEach((point) => {
+      if (point.xDate) {
+        if (!minXDate || point.xDate < minXDate) minXDate = point.xDate;
+        if (!maxXDate || point.xDate > maxXDate) maxXDate = point.xDate;
+      }
+      if (point.yDate) {
+        if (!minYDate || point.yDate < minYDate) minYDate = point.yDate;
+        if (!maxYDate || point.yDate > maxYDate) maxYDate = point.yDate;
+      }
+    });
+    statVarDateRanges[xDcid] = { minDate: minXDate, maxDate: maxXDate };
+    statVarDateRanges[yDcid] = { minDate: minYDate, maxDate: maxYDate };
+  }
+
   return (
     <div id="chart" className="chart-section-container" ref={chartContainerRef}>
+      <ToolChartHeader
+        svFacetId={props.svFacetId}
+        facetList={props.facetList}
+        facetListLoading={props.facetListLoading}
+        facetListError={props.facetListError}
+        onSvFacetIdUpdated={props.onSvFacetIdUpdated}
+      />
       <Card className="chart-card">
         <div className="chart-title">
           <h3>{yTitle}</h3>
@@ -182,10 +253,14 @@ export function Chart(props: ChartPropsType): JSX.Element {
         chartId="scatter"
         sources={props.sources}
         mMethods={null}
-        svFacetId={props.svFacetId}
-        facetList={props.facetList}
-        onSvFacetIdUpdated={props.onSvFacetIdUpdated}
         hideIsRatio={true}
+        handleEmbed={props.handleEmbed}
+        getObservationSpecs={props.getObservationSpecs}
+        containerRef={props.containerRef}
+        facets={getFacetMetadataFromFacetList(props.facetList)}
+        statVarSpecs={statVarSpecs}
+        statVarToFacets={statVarToFacets}
+        statVarDateRanges={statVarDateRanges}
       >
         <PlotOptions />
       </ToolChartFooter>
@@ -208,7 +283,9 @@ function clearSVGs(): void {
  * Plots the chart which could either be a scatter plot or map.
  * @param svgContainerRef Ref for the container to plot the chart within
  * @param tooltipRef Ref for the tooltip div
+ * @param mapLegendRef
  * @param props Options and information about the chart
+ * @param geoJsonData
  */
 function plot(
   svgContainerRef: React.MutableRefObject<HTMLDivElement>,
@@ -309,7 +386,7 @@ function getTooltipElement(
   yLabel: string,
   xPerCapita: boolean,
   yPerCapita: boolean
-): JSX.Element {
+): ReactElement {
   let supIndex = 0;
   const xPopDateMessage =
     xPerCapita && point.xPopDate && !point.xDate.includes(point.xPopDate)
@@ -356,7 +433,7 @@ function redirectAction(placeDcid: string): void {
   window.open(uri);
 }
 
-function getTitle(dates: string[], statVarLabel: string) {
+function getTitle(dates: string[], statVarLabel: string): string {
   const dateRange = `(${getDateRange(dates)})`;
   return `${statVarLabel} ${dateRange}`;
 }
@@ -369,7 +446,7 @@ const getMapTooltipHtml =
     xPerCapita: boolean,
     yPerCapita: boolean
   ) =>
-  (place: NamedPlace) => {
+  (place: NamedPlace): string => {
     const point = points[place.dcid];
     if (_.isEmpty(point)) {
       return (

@@ -18,10 +18,22 @@
  * Main app component for map explorer.
  */
 
-import React, { useEffect, useState } from "react";
+import { css, ThemeProvider, useTheme } from "@emotion/react";
+import React, { ReactElement, useContext, useEffect, useState } from "react";
+import { RawIntlProvider } from "react-intl";
 import { Container, Row } from "reactstrap";
 
 import { ASYNC_ELEMENT_HOLDER_CLASS } from "../../constants/css_constants";
+import { intl } from "../../i18n/i18n";
+import { toolMessages } from "../../i18n/i18n_tool_messages";
+import {
+  isFeatureEnabled,
+  STANDARDIZED_VIS_TOOL_FEATURE_FLAG,
+} from "../../shared/feature_flags/util";
+import theme from "../../theme/theme";
+import { ToolHeader } from "../shared/tool_header";
+import { ChartLinkChips } from "../shared/vis_tools/chart_link_chips";
+import { VisToolInstructionsBox } from "../shared/vis_tools/vis_tool_instructions_box";
 import { ChartLoader } from "./chart_loader";
 import { Context, ContextType, useInitialContext } from "./context";
 import { Info } from "./info";
@@ -29,22 +41,32 @@ import { PlaceOptions } from "./place_options";
 import { StatVarChooser } from "./stat_var_chooser";
 import { Title } from "./title";
 import {
-  ALLOW_LEAFLET_URL_ARG,
   applyHashDate,
   applyHashDisplay,
   applyHashPlaceInfo,
   applyHashStatVar,
+  ifShowChart,
   MAP_URL_PATH,
+  shouldShowStatVarInstructions,
   updateHashDisplay,
   updateHashPlaceInfo,
   updateHashStatVar,
 } from "./util";
 
-function App(): JSX.Element {
+function App(): ReactElement {
   const [isSvModalOpen, updateSvModalOpen] = useState(false);
-  const toggleSvModalCallback = () => updateSvModalOpen(!isSvModalOpen);
+  const toggleSvModalCallback = (): void => updateSvModalOpen(!isSvModalOpen);
+  const useStandardizedUi = isFeatureEnabled(
+    STANDARDIZED_VIS_TOOL_FEATURE_FLAG
+  );
+  const theme = useTheme();
+  const { placeInfo, statVar } = useContext(Context);
+  const showChart = ifShowChart(statVar.value, placeInfo.value);
+  const showStatVarInstructions = shouldShowStatVarInstructions(
+    statVar.value,
+    placeInfo.value
+  );
 
-  // Show the BigQuery button when there is a chart
   return (
     <React.StrictMode>
       <StatVarChooser
@@ -54,36 +76,65 @@ function App(): JSX.Element {
       <div id="plot-container" className={ASYNC_ELEMENT_HOLDER_CLASS}>
         <Container fluid={true}>
           <Row>
-            <Title />
+            {useStandardizedUi ? (
+              <ToolHeader
+                title={intl.formatMessage(toolMessages.mapToolTitle)}
+                subtitle={intl.formatMessage(toolMessages.mapToolSubtitle)}
+              />
+            ) : (
+              <Title />
+            )}
           </Row>
           <Row>
             <PlaceOptions toggleSvHierarchyModal={toggleSvModalCallback} />
           </Row>
-          <Row>
-            <Info />
-          </Row>
-          <Row id="chart-row">
-            <ChartLoader />
-          </Row>
+          {!showChart && (
+            <Row>
+              {useStandardizedUi ? (
+                showStatVarInstructions ? (
+                  <VisToolInstructionsBox toolType="map" />
+                ) : (
+                  <div
+                    css={css`
+                      margin-top: ${theme.spacing.xl}px;
+                    `}
+                  >
+                    <ChartLinkChips toolType="map" />
+                  </div>
+                )
+              ) : (
+                <Info />
+              )}
+            </Row>
+          )}
+          {showChart && (
+            <Row id="chart-row">
+              <ChartLoader />
+            </Row>
+          )}
         </Container>
       </div>
     </React.StrictMode>
   );
 }
 
-export function AppWithContext(): JSX.Element {
+export function AppWithContext(): ReactElement {
   const params = new URLSearchParams(
     decodeURIComponent(location.hash).replace("#", "?")
   );
   const store = useInitialContext(params);
 
   useEffect(() => updateHash(store), [store]);
-  window.onhashchange = () => applyHash(store);
+  window.onhashchange = (): void => applyHash(store);
 
   return (
-    <Context.Provider value={store}>
-      <App />
-    </Context.Provider>
+    <ThemeProvider theme={theme}>
+      <RawIntlProvider value={intl}>
+        <Context.Provider value={store}>
+          <App />
+        </Context.Provider>
+      </RawIntlProvider>
+    </ThemeProvider>
   );
 }
 
@@ -103,17 +154,15 @@ function updateHash(context: ContextType): void {
   let hash = updateHashStatVar("", context.statVar.value);
   hash = updateHashPlaceInfo(hash, context.placeInfo.value);
   hash = updateHashDisplay(hash, context.display.value);
-  // leaflet flag is part of the search arguments instead of hash, so need to
-  // update that separately
-  // TODO: forward along all args and then append hash in the url.
-  let args = "";
-  if (context.display.value.allowLeaflet) {
-    args += `?${ALLOW_LEAFLET_URL_ARG}=1`;
-  }
-  const newHash = encodeURIComponent(hash);
+  const args = new URLSearchParams(location.search);
+  const newHash = hash ? `#${encodeURIComponent(hash)}` : "";
+  const newArgs = args.toString() ? `?${args.toString()}` : "";
   const currentHash = location.hash.replace("#", "");
   const currentArgs = location.search;
-  if (newHash && (newHash !== currentHash || args !== currentArgs)) {
-    history.pushState({}, "", `${MAP_URL_PATH}${args}#${newHash}`);
+  if (
+    (newHash || newArgs) &&
+    (newHash !== currentHash || newArgs !== currentArgs)
+  ) {
+    history.pushState({}, "", `${MAP_URL_PATH}${newArgs}${newHash}`);
   }
 }

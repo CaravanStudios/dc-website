@@ -23,7 +23,7 @@ import {
   HighlightTile,
   HighlightTilePropType,
 } from "../js/components/tiles/highlight_tile";
-import { DEFAULT_PER_CAPITA_DENOM } from "./constants";
+import { DEFAULT_PER_CAPITA_DENOM, WEB_COMPONENT_SURFACE } from "./constants";
 import {
   convertArrayAttribute,
   createWebComponentElement,
@@ -89,7 +89,7 @@ export class DatacommonsHighlightComponent extends LitElement {
   @property({ type: Array<string>, converter: convertArrayAttribute })
   sources?: string[];
 
-  render(): HTMLElement {
+  render(): HTMLDivElement {
     const highlightTileProps: HighlightTilePropType = {
       apiRoot: getApiRoot(this.apiRoot),
       description: this.header || this.description,
@@ -111,6 +111,7 @@ export class DatacommonsHighlightComponent extends LitElement {
         statVar: this.variable,
         unit: this.unit || "",
       },
+      surface: WEB_COMPONENT_SURFACE,
     };
     return createWebComponentElement(HighlightTile, highlightTileProps);
   }

@@ -24,7 +24,7 @@ import {
   RankingTile,
   RankingTilePropType,
 } from "../js/components/tiles/ranking_tile";
-import { DEFAULT_PER_CAPITA_DENOM } from "./constants";
+import { DEFAULT_PER_CAPITA_DENOM, WEB_COMPONENT_SURFACE } from "./constants";
 import {
   convertArrayAttribute,
   convertBooleanAttribute,
@@ -145,7 +145,7 @@ export class DatacommonsRankingComponent extends LitElement {
   @property({ type: Array<string>, converter: convertArrayAttribute })
   sources?: string[];
 
-  render(): HTMLElement {
+  render(): HTMLDivElement {
     const variables = this.variables || [this.variable];
     const statVarSpecs = variables.map((statVar) => {
       return {
@@ -180,6 +180,7 @@ export class DatacommonsRankingComponent extends LitElement {
       sources: this.sources,
       variables: statVarSpecs,
       title: this.header || this.title,
+      surface: WEB_COMPONENT_SURFACE,
     };
     return createWebComponentElement(RankingTile, rankingTileProps);
   }

@@ -22,6 +22,7 @@
 
 import { createContext } from "react";
 
+import { apiRootToHostname } from "../utils/url_utils";
 import { PLACE_TYPES } from "./constants";
 
 // Global app state
@@ -33,8 +34,6 @@ export interface ContextType {
 
 export const Context = createContext({} as ContextType);
 
-export const NlSessionContext = createContext("");
-
 export interface ExploreType {
   exploreMore: Record<string, Record<string, string[]>>;
   place: string;
@@ -45,18 +44,19 @@ export const ExploreContext = createContext({} as ExploreType);
 
 export const RankingUnitUrlFuncContext = createContext(
   (dcid: string, placeType?: string, apiRoot?: string) => {
-    const formattedApiRoot = apiRoot ? apiRoot.replace(/\/$/, "") : "";
     const path =
       !placeType || PLACE_TYPES.has(placeType)
         ? `/place/${dcid}`
         : `/browser/${dcid}`;
-    return `${formattedApiRoot || ""}${path}`;
+    return `${apiRootToHostname(apiRoot)}${path}`;
   }
 );
 
 export const SdgContext = createContext({
   sdgIndex: null,
-  setSdgIndex: (i: number) => {
+  /* eslint-disable */
+  setSdgIndex: (_: number): void => {
     return;
   },
+  /* eslint-enable */
 });

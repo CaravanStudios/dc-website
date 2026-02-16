@@ -16,13 +16,22 @@
 
 import { stringify } from "qs";
 
-export const stringifyFn = (params) => {
+import { SURFACE_HEADER_NAME } from "../shared/constants";
+
+export const stringifyFn = (params): string => {
   return stringify(params, { arrayFormat: "repeat" });
 };
 
-export const getRoot = () => {
+export const getRoot = (): string => {
   if (globalThis.datacommons) {
     return globalThis.datacommons.root || "";
   }
   return "";
+};
+
+// formats header for calls to the Flask API, which is passed into mixer and used in usage logging
+export const getSurfaceHeader = (
+  surface: string
+): Record<typeof SURFACE_HEADER_NAME, string> => {
+  return { [SURFACE_HEADER_NAME]: surface };
 };

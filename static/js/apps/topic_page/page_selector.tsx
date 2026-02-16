@@ -18,10 +18,7 @@
  * Component for selecting topic and place.
  */
 
-import axios from "axios";
-import _ from "lodash";
 import React, { useEffect, useState } from "react";
-import { CustomInput } from "reactstrap";
 
 import { NamedTypedPlace } from "../../shared/types";
 import { TopicsSummary } from "../../types/app/topic_page_types";
@@ -35,17 +32,9 @@ interface PageSelectorPropType {
 }
 
 export function PageSelector(props: PageSelectorPropType): JSX.Element {
-  const [placeOptions, setPlaceOptions] = useState<
-    Record<string, string> | undefined
-  >({});
-
   const [morePlaces, setMorePlaces] = useState<NamedTypedPlace[] | undefined>(
     []
   );
-
-  useEffect(() => {
-    getPlaceOptions(props.selectedTopic, props.topicsSummary, setPlaceOptions);
-  }, [props]);
 
   useEffect(() => {
     getMorePlaces(props.morePlaces, setMorePlaces);
@@ -123,24 +112,6 @@ export function PageSelector(props: PageSelectorPropType): JSX.Element {
   );
 }
 
-function getPlaceOptions(
-  selectedTopic: string,
-  topicsSummary: TopicsSummary,
-  setPlaceOptions: (placeOptions: Record<string, string>) => void
-): void {
-  const placeOptionDcids = topicsSummary.topicPlaceMap[selectedTopic] || [];
-  // TODO: make this call in flask and pass it down with the topicsSummary
-  getPlaceNames(placeOptionDcids)
-    .then((placeNames) => {
-      setPlaceOptions(placeNames);
-    })
-    .catch(() => {
-      const placeOptions = {};
-      placeOptionDcids.forEach((place) => (placeOptions[place] = place));
-      setPlaceOptions(placeOptions);
-    });
-}
-
 function getMorePlaces(
   placeDcids: string[],
   setMorePlaces: (places: NamedTypedPlace[]) => void
@@ -157,6 +128,7 @@ function getMorePlaces(
   });
 }
 
+/* TODO(chejennifer): Consider deleting or reintroducing the commented out block below and lines 67-118 above.
 function selectPlace(
   currentTopic: string,
   event: React.ChangeEvent<HTMLInputElement>
@@ -181,3 +153,4 @@ function selectTopic(
     window.open(`/topic/${topic}/${currentPlace}`, "_self");
   }
 }
+*/

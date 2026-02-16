@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
+/* eslint-disable camelcase */
+import theme from "../../theme/theme";
+
 jest.mock("axios");
 jest.setTimeout(100000);
 
+import { ThemeProvider } from "@emotion/react";
 import { waitFor } from "@testing-library/react";
 import Adapter from "@wojtekmaj/enzyme-adapter-react-17";
 import axios from "axios";
@@ -24,6 +28,7 @@ import Enzyme, { mount, ReactWrapper } from "enzyme";
 import pretty from "pretty";
 import React from "react";
 
+import { WEBSITE_SURFACE_HEADER } from "../../shared/constants";
 import * as SharedUtil from "../../shared/util";
 import { InfoPlace } from "./info";
 import { axiosMock } from "./mock_functions";
@@ -38,9 +43,9 @@ const INFO_PLACES: [InfoPlace, InfoPlace] = [
   { name: "Place 2", dcid: "dcid/2" },
 ];
 
-async function waitForComponentUpdates(wrapper: ReactWrapper) {
+async function waitForComponentUpdates(wrapper: ReactWrapper): Promise<void> {
   // Wait for state updates
-  await waitFor(() => {
+  await waitFor((): void => {
     expect(wrapper.text()).toContain("");
   });
   // Wait for stat var info and place info fetching
@@ -62,7 +67,11 @@ test("Loading options from URL", async () => {
   // Mock all the async axios calls
   axiosMock();
   // Render the component
-  const wrapper = mount(<Page infoPlaces={INFO_PLACES} />);
+  const wrapper = mount(
+    <ThemeProvider theme={theme}>
+      <Page infoPlaces={INFO_PLACES} />
+    </ThemeProvider>
+  );
   await waitForComponentUpdates(wrapper);
   // Check that preview table shows up on click and matches snapshot
   wrapper.find(".get-data-button").at(0).simulate("click");
@@ -75,16 +84,22 @@ test("Loading options from URL", async () => {
   ).toMatchSnapshot();
   // Check that clicking download gets the right data and calls the saveToFile function.
   wrapper.find(".download-button").at(0).simulate("click");
-  expect(axios.post).toHaveBeenCalledWith("/api/csv/within", {
-    childType: "County",
-    facetMap: {
-      Count_Person: "",
+  expect(axios.post).toHaveBeenCalledWith(
+    "/api/csv/within",
+    {
+      childType: "County",
+      facetMap: {
+        Count_Person: "",
+      },
+      maxDate: "latest",
+      minDate: "latest",
+      parentPlace: "geoId/06",
+      statVars: ["Count_Person"],
     },
-    maxDate: "latest",
-    minDate: "latest",
-    parentPlace: "geoId/06",
-    statVars: ["Count_Person"],
-  });
+    {
+      headers: WEBSITE_SURFACE_HEADER,
+    }
+  );
   let savedFile = "";
   jest.spyOn(SharedUtil, "saveToFile").mockImplementation((fileName) => {
     savedFile = fileName;
@@ -106,7 +121,11 @@ test("Manually updating options", async () => {
   // Mock all the async axios calls
   axiosMock();
   // Render the component
-  const wrapper = mount(<Page infoPlaces={INFO_PLACES} />);
+  const wrapper = mount(
+    <ThemeProvider theme={theme}>
+      <Page infoPlaces={INFO_PLACES} />
+    </ThemeProvider>
+  );
   await waitForComponentUpdates(wrapper);
   // Choose place type
   wrapper
@@ -115,7 +134,8 @@ test("Manually updating options", async () => {
     .simulate("change", { target: { value: "County" } });
   await waitFor(() => {
     expect(axios.get).toHaveBeenCalledWith(
-      "/api/place/descendent?dcids=geoId/06&descendentType=County"
+      "/api/place/descendent?dcids=geoId/06&descendentType=County",
+      expect.anything()
     );
   });
   await waitForComponentUpdates(wrapper);
@@ -157,16 +177,22 @@ test("Manually updating options", async () => {
   ).toMatchSnapshot();
   // Check that clicking download gets the right data and calls the saveToFile function.
   wrapper.find(".download-button").at(0).simulate("click");
-  expect(axios.post).toHaveBeenCalledWith("/api/csv/within", {
-    childType: "County",
-    facetMap: {
-      Count_Person: "",
+  expect(axios.post).toHaveBeenCalledWith(
+    "/api/csv/within",
+    {
+      childType: "County",
+      facetMap: {
+        Count_Person: "",
+      },
+      maxDate: "",
+      minDate: "2020",
+      parentPlace: "geoId/06",
+      statVars: ["Count_Person"],
     },
-    maxDate: "",
-    minDate: "2020",
-    parentPlace: "geoId/06",
-    statVars: ["Count_Person"],
-  });
+    {
+      headers: WEBSITE_SURFACE_HEADER,
+    }
+  );
   let savedFile = "";
   jest.spyOn(SharedUtil, "saveToFile").mockImplementation((fileName) => {
     savedFile = fileName;

@@ -15,9 +15,10 @@
  */
 
 import { PointApiResponse } from "@datacommonsorg/client";
-import React from "react";
+import React, { ReactElement } from "react";
 import ReactDOM from "react-dom";
 
+import { WrappedTile } from "../js/utils/wrapped_tile";
 import {
   DEFAULT_API_ENDPOINT,
   MATERIAL_ICONS_OUTLINED_STYLESHEET_URL,
@@ -37,6 +38,9 @@ import {
  * @returns A string array of attribute values
  */
 export function convertArrayAttribute(attributeValue: string): string[] {
+  if (!attributeValue) {
+    return undefined;
+  }
   if (attributeValue.startsWith("[")) {
     // Parse as JSON if attribute value begins with a bracket
     return JSON.parse(attributeValue);
@@ -64,10 +68,12 @@ export function convertBooleanAttribute(attributeValue: string): boolean {
  * @returns HTML Element containing the tile wrapped as a web component
  */
 export function createWebComponentElement(
-  tile: (props: any) => JSX.Element,
+  tile: (props: any) => ReactElement,
   tileProps: any
-): HTMLElement {
+): HTMLDivElement {
   const container = document.createElement("div");
+  const styleHost = document.createElement("div");
+  container.appendChild(styleHost);
 
   // Add stylesheet for material icons to the shadow DOM
   for (const url of [
@@ -82,7 +88,10 @@ export function createWebComponentElement(
 
   // Create mount point and render tile in it
   const mountPoint = document.createElement("div");
-  ReactDOM.render(React.createElement(tile, tileProps), mountPoint);
+  ReactDOM.render(
+    React.createElement(WrappedTile, { Tile: tile, tileProps, styleHost }),
+    mountPoint
+  );
   container.appendChild(mountPoint);
 
   return container;

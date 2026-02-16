@@ -29,7 +29,10 @@ import { Point } from "../../chart/draw_scatter";
 import { GeoJsonData } from "../../chart/types";
 import { URL_PATH } from "../../constants/app/visualization_constants";
 import { CSV_FIELD_DELIMITER } from "../../constants/tile_constants";
+import { intl } from "../../i18n/i18n";
+import { messages } from "../../i18n/i18n_messages";
 import { USA_PLACE_DCID } from "../../shared/constants";
+import { useLazyLoad } from "../../shared/hooks";
 import { PointApiResponse, SeriesApiResponse } from "../../shared/stat_types";
 import { NamedPlace, NamedTypedPlace, StatVarSpec } from "../../shared/types";
 import { getStatWithinPlace } from "../../tools/scatter/util";
@@ -41,18 +44,18 @@ import {
   getContextStatVar,
   getHash,
 } from "../../utils/app/visualization_utils";
-import { getSeriesWithin } from "../../utils/data_fetch_utils";
-import { datacommonsClient } from "../../utils/datacommons_client";
+import { getDataCommonsClient } from "../../utils/data_commons_client";
 import { getStringOrNA } from "../../utils/number_utils";
 import { getPlaceScatterData } from "../../utils/scatter_data_utils";
 import {
+  clearContainer,
   getDenomInfo,
+  getDenomResp,
   getFirstCappedStatVarSpecDate,
   getNoDataErrorMsg,
   getStatFormat,
   getStatVarName,
   ReplacementStrings,
-  showError,
   transformCsvHeader,
 } from "../../utils/tile_utils";
 import { ChartTileContainer } from "./chart_tile";
@@ -71,12 +74,21 @@ interface BivariateTilePropType {
   showExploreMore?: boolean;
   // API root
   apiRoot?: string;
+  // Optional: only load this component when it's near the viewport
+  lazyLoad?: boolean;
+  /**
+   * Optional: If lazy loading is enabled, load the component when it is within
+   * this margin of the viewport. Default: "0px"
+   */
+  lazyLoadMargin?: string;
+  surface?: string;
 }
 
 interface RawData {
   geoJson: GeoJsonData;
   placeStats: PointApiResponse;
-  population: SeriesApiResponse;
+  denomsByFacet: Record<string, SeriesApiResponse>;
+  defaultDenomData: SeriesApiResponse;
   placeNames: { [placeDcid: string]: string };
   parentPlaces: NamedTypedPlace[];
 }
@@ -99,15 +111,18 @@ export function BivariateTile(props: BivariateTilePropType): JSX.Element {
   const [bivariateChartData, setBivariateChartData] = useState<
     BivariateChartData | undefined
   >(null);
-
+  const { shouldLoad, containerRef } = useLazyLoad(props.lazyLoadMargin);
   useEffect(() => {
+    if (props.lazyLoad && !shouldLoad) {
+      return;
+    }
     if (!bivariateChartData || !_.isEqual(bivariateChartData.props, props)) {
-      (async () => {
+      (async (): Promise<void> => {
         const data = await fetchData(props);
         setBivariateChartData(data);
       })();
     }
-  }, [props, bivariateChartData]);
+  }, [props, bivariateChartData, shouldLoad]);
 
   const drawFn = useCallback(() => {
     if (_.isEmpty(bivariateChartData)) {
@@ -125,6 +140,7 @@ export function BivariateTile(props: BivariateTilePropType): JSX.Element {
     <ChartTileContainer
       id={props.id}
       title={props.title}
+      apiRoot={props.apiRoot}
       sources={bivariateChartData && bivariateChartData.sources}
       replacementStrings={rs}
       className={`${props.className} bivariate-chart`}
@@ -132,13 +148,22 @@ export function BivariateTile(props: BivariateTilePropType): JSX.Element {
       getDataCsv={getDataCsvCallback(props)}
       isInitialLoading={_.isNull(bivariateChartData)}
       exploreLink={props.showExploreMore ? getExploreLink(props) : null}
-      hasErrorMsg={bivariateChartData && !!bivariateChartData.errorMsg}
+      errorMsg={bivariateChartData && bivariateChartData.errorMsg}
+      statVarSpecs={props.statVarSpec}
+      forwardRef={containerRef}
+      surface={props.surface}
     >
       <div
         id={props.id}
         className="bivariate-svg-container"
         ref={svgContainer}
-        style={{ minHeight: props.svgChartHeight }}
+        style={{
+          minHeight: props.svgChartHeight,
+          display:
+            bivariateChartData && bivariateChartData.errorMsg
+              ? "none"
+              : "block",
+        }}
       />
       <div id="bivariate-legend-container" ref={legend} />
     </ChartTileContainer>
@@ -154,13 +179,17 @@ function getDataCsvCallback(
   props: BivariateTilePropType
 ): () => Promise<string> {
   return () => {
+    const dataCommonsClient = getDataCommonsClient(
+      props.apiRoot,
+      props.surface
+    );
     // Assume all variables will have the same date
     // TODO: Update getCsv to handle different dates for different variables
     const date = getFirstCappedStatVarSpecDate(props.statVarSpec);
     const perCapitaVariables = props.statVarSpec
       .filter((v) => v.denom)
       .map((v) => v.statVar);
-    return datacommonsClient.getCsv({
+    return dataCommonsClient.getCsv({
       childType: props.enclosedPlaceType,
       date,
       fieldDelimiter: CSV_FIELD_DELIMITER,
@@ -172,11 +201,13 @@ function getDataCsvCallback(
   };
 }
 
-function getPopulationPromise(
+async function getPopulationData(
   placeDcid: string,
   enclosedPlaceType: string,
-  statVarSpec: StatVarSpec[]
-): Promise<SeriesApiResponse> {
+  statVarSpec: StatVarSpec[],
+  surface: string,
+  placeStats: PointApiResponse
+): Promise<[Record<string, SeriesApiResponse>, SeriesApiResponse]> {
   const variables = [];
   for (const sv of statVarSpec) {
     if (sv.denom) {
@@ -184,34 +215,48 @@ function getPopulationPromise(
     }
   }
   if (_.isEmpty(variables)) {
-    return Promise.resolve(null);
+    return [null, null];
   } else {
-    return getSeriesWithin("", placeDcid, enclosedPlaceType, variables);
+    return await getDenomResp(
+      variables,
+      placeStats,
+      "",
+      true,
+      placeDcid,
+      null,
+      enclosedPlaceType
+    );
   }
 }
 
-export const fetchData = async (props: BivariateTilePropType) => {
+export const fetchData = async (
+  props: BivariateTilePropType
+): Promise<BivariateChartData | null> => {
   if (props.statVarSpec.length < 2) {
     // TODO: add error message
-    return;
+    return null;
   }
   const geoJsonPromise: Promise<GeoJsonData> = axios
     .get(
       `/api/choropleth/geojson?placeDcid=${props.place.dcid}&placeType=${props.enclosedPlaceType}`
     )
     .then((resp) => resp.data);
-  const placeStatsPromise: Promise<PointApiResponse> = getStatWithinPlace(
+  const placeStats: PointApiResponse = await getStatWithinPlace(
     props.place.dcid,
     props.enclosedPlaceType,
     [
       { statVarDcid: props.statVarSpec[0].statVar },
       { statVarDcid: props.statVarSpec[1].statVar },
-    ]
+    ],
+    props.apiRoot,
+    props.surface
   );
-  const populationPromise: Promise<SeriesApiResponse> = getPopulationPromise(
+  const [denomsByFacet, defaultDenomData] = await getPopulationData(
     props.place.dcid,
     props.enclosedPlaceType,
-    props.statVarSpec
+    props.statVarSpec,
+    props.surface,
+    placeStats
   );
   const placeNamesPromise = axios
     .get(
@@ -222,17 +267,15 @@ export const fetchData = async (props: BivariateTilePropType) => {
     .get(`/api/place/parent?dcid=${props.place.dcid}`)
     .then((resp) => resp.data);
   try {
-    const [placeStats, population, placeNames, geoJson, parentPlaces] =
-      await Promise.all([
-        placeStatsPromise,
-        populationPromise,
-        placeNamesPromise,
-        geoJsonPromise,
-        parentPlacesPromise,
-      ]);
+    const [placeNames, geoJson, parentPlaces] = await Promise.all([
+      placeNamesPromise,
+      geoJsonPromise,
+      parentPlacesPromise,
+    ]);
     const rawData = {
       placeStats,
-      population,
+      denomsByFacet,
+      defaultDenomData,
       placeNames,
       geoJson,
       parentPlaces,
@@ -277,7 +320,8 @@ function rawToChart(
       namedPlace,
       xPlacePointStat,
       yPlacePointStat,
-      rawData.population,
+      rawData.denomsByFacet,
+      rawData.defaultDenomData,
       rawData.placeStats.facets
     );
     if (!placeChartData) {
@@ -291,11 +335,14 @@ function rawToChart(
     });
     const point = placeChartData.point;
     if (xStatVar.denom) {
+      const xFacet = xPlacePointStat[place].facet;
       const denomInfo = getDenomInfo(
         xStatVar,
-        rawData.population,
+        rawData.denomsByFacet,
         place,
-        point.xDate
+        point.xDate,
+        xFacet,
+        rawData.defaultDenomData
       );
       if (!denomInfo) {
         // skip this data point because missing denom data.
@@ -310,11 +357,14 @@ function rawToChart(
       point.xVal *= xUnitScaling.scaling;
     }
     if (yStatVar.denom) {
+      const yFacet = yPlacePointStat[place].facet;
       const denomInfo = getDenomInfo(
         yStatVar,
-        rawData.population,
+        rawData.denomsByFacet,
         place,
-        point.yDate
+        point.yDate,
+        yFacet,
+        rawData.defaultDenomData
       );
       if (!denomInfo) {
         // skip this data point because missing denom data.
@@ -352,7 +402,7 @@ function rawToChart(
 
 const getTooltipHtml =
   (points: { [placeDcid: string]: Point }, xLabel: string, yLabel: string) =>
-  (place: NamedPlace) => {
+  (place: NamedPlace): string => {
     const point = points[place.dcid];
     if (_.isEmpty(point)) {
       return (
@@ -381,7 +431,7 @@ function draw(
   legend: React.RefObject<HTMLDivElement>
 ): void {
   if (chartData.errorMsg) {
-    showError(chartData.errorMsg, svgContainer.current);
+    clearContainer(svgContainer.current);
     return;
   }
   const width = svgContainer.current.offsetWidth;
@@ -432,7 +482,7 @@ function getExploreLink(props: BivariateTilePropType): {
     {}
   );
   return {
-    displayText: "Scatter Tool",
+    displayText: intl.formatMessage(messages.scatterTool),
     url: `${props.apiRoot || ""}${URL_PATH}#${hash}`,
   };
 }

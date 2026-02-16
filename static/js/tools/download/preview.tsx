@@ -24,6 +24,7 @@ import Papa from "papaparse";
 import React, { useEffect, useRef, useState } from "react";
 import { Button, Card } from "reactstrap";
 
+import { WEBSITE_SURFACE_HEADER } from "../../shared/constants";
 import { loadSpinner, removeSpinner, saveToFile } from "../../shared/util";
 import {
   DATE_ALL,
@@ -125,7 +126,14 @@ export function Preview(props: PreviewProps): JSX.Element {
     </Card>
   );
 
-  function getCsvReqPayload() {
+  function getCsvReqPayload(): {
+    parentPlace: string;
+    childType: string;
+    statVars: string[];
+    facetMap: Record<string, string>;
+    minDate: string;
+    maxDate: string;
+  } {
     // When both minDate and maxDate are set as "latest", the api will get the
     // data for the latest date.
     let minDate = props.selectedOptions.minDate;
@@ -147,12 +155,15 @@ export function Preview(props: PreviewProps): JSX.Element {
     };
   }
 
-  function onDownloadClicked() {
+  function onDownloadClicked(): void {
     if (_.isEmpty(csvReqPayload.current)) {
       return;
     }
+    const headers = {
+      headers: WEBSITE_SURFACE_HEADER,
+    };
     axios
-      .post("/api/csv/within", csvReqPayload.current)
+      .post("/api/csv/within", csvReqPayload.current, headers)
       .then((resp) => {
         if (resp.data) {
           saveToFile(
@@ -175,8 +186,11 @@ export function Preview(props: PreviewProps): JSX.Element {
     }
     const reqObject = _.cloneDeep(csvReqPayload.current);
     reqObject["rowLimit"] = NUM_ROWS;
+    const headers = {
+      headers: WEBSITE_SURFACE_HEADER,
+    };
     axios
-      .post("/api/csv/within", reqObject)
+      .post("/api/csv/within", reqObject, headers)
       .then((resp) => {
         if (resp.data) {
           Papa.parse(resp.data, {

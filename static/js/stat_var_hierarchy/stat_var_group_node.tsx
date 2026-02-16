@@ -26,6 +26,10 @@ import Collapsible from "react-collapsible";
 import { ASYNC_ELEMENT_HOLDER_CLASS } from "../constants/css_constants";
 import { Context, ContextType } from "../shared/context";
 import {
+  GA_EVENT_STATVAR_HIERARCHY_CLICK,
+  triggerGAEvent,
+} from "../shared/ga_events";
+import {
   NamedNode,
   RADIO_BUTTON_TYPES,
   StatVarGroupInfo,
@@ -33,7 +37,10 @@ import {
   StatVarHierarchyType,
   StatVarInfo,
 } from "../shared/types";
-import { StatVarHierarchyNodeHeader } from "./node_header";
+import {
+  StatVarHierarchyNodeHeader,
+  StatVarHierarchyNodeHeaderPropType,
+} from "./node_header";
 import { StatVarGroupSection } from "./stat_var_group_section";
 import { StatVarSection } from "./stat_var_section";
 
@@ -184,7 +191,12 @@ export class StatVarGroupNode extends React.Component<
       : this.state.childSVG.filter((svg) => {
           return svg.descendentStatVarCount > 0 || svgOnSvPath.has(svg.id);
         });
-    const getTrigger = (opened: boolean) => {
+    const getTrigger = (
+      opened: boolean
+    ): React.CElement<
+      StatVarHierarchyNodeHeaderPropType,
+      StatVarHierarchyNodeHeader
+    > => {
       return React.createElement(StatVarHierarchyNodeHeader, {
         childrenStatVarCount: this.props.data.descendentStatVarCount,
         highlighted: this.props.isSelected,
@@ -207,7 +219,8 @@ export class StatVarGroupNode extends React.Component<
           trigger={getTrigger(false)}
           triggerWhenOpen={getTrigger(true)}
           open={shouldOpen}
-          handleTriggerClick={() => {
+          handleTriggerClick={(): void => {
+            triggerGAEvent(GA_EVENT_STATVAR_HIERARCHY_CLICK, {});
             this.setState({ isOpen: !this.state.isOpen });
           }}
           transitionTime={200}

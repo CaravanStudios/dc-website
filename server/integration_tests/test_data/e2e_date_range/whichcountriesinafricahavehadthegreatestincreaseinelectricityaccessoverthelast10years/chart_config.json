@@ -10,22 +10,22 @@
                 "tiles": [
                   {
                     "comparisonPlaces": [
-                      "country/KEN",
                       "country/RWA",
-                      "country/ETH",
                       "country/UGA",
-                      "country/TZA",
-                      "country/MLI",
-                      "country/ZMB",
-                      "country/SDN",
+                      "country/KEN",
+                      "country/BEN",
                       "country/ZWE",
-                      "country/AGO"
+                      "country/GIN",
+                      "country/MDG",
+                      "country/ZMB",
+                      "country/MLI",
+                      "country/TZA"
                     ],
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS10_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS10_4031432057"
                     ],
                     "title": "Population With Electricity Access (%)",
                     "type": "LINE"
@@ -42,26 +42,11 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
-                    },
-                    "placeDcidOverride": "country/KEN",
-                    "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879"
-                    ],
-                    "title": "Kenya",
-                    "type": "LINE"
-                  }
-                ]
-              },
-              {
-                "tiles": [
-                  {
-                    "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
                     "placeDcidOverride": "country/RWA",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057"
                     ],
                     "title": "Rwanda",
                     "type": "LINE"
@@ -72,26 +57,11 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
-                    },
-                    "placeDcidOverride": "country/ETH",
-                    "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879"
-                    ],
-                    "title": "Ethiopia",
-                    "type": "LINE"
-                  }
-                ]
-              },
-              {
-                "tiles": [
-                  {
-                    "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
                     "placeDcidOverride": "country/UGA",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057"
                     ],
                     "title": "Uganda",
                     "type": "LINE"
@@ -102,13 +72,13 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
-                    "placeDcidOverride": "country/TZA",
+                    "placeDcidOverride": "country/KEN",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057"
                     ],
-                    "title": "Tanzania",
+                    "title": "Kenya",
                     "type": "LINE"
                   }
                 ]
@@ -117,13 +87,13 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
-                    "placeDcidOverride": "country/MLI",
+                    "placeDcidOverride": "country/BEN",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057"
                     ],
-                    "title": "Mali",
+                    "title": "Benin",
                     "type": "LINE"
                   }
                 ]
@@ -132,41 +102,11 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
-                    },
-                    "placeDcidOverride": "country/ZMB",
-                    "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879"
-                    ],
-                    "title": "Zambia",
-                    "type": "LINE"
-                  }
-                ]
-              },
-              {
-                "tiles": [
-                  {
-                    "lineTileSpec": {
-                      "startDate": "2014"
-                    },
-                    "placeDcidOverride": "country/SDN",
-                    "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879"
-                    ],
-                    "title": "Sudan",
-                    "type": "LINE"
-                  }
-                ]
-              },
-              {
-                "tiles": [
-                  {
-                    "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
                     "placeDcidOverride": "country/ZWE",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057"
                     ],
                     "title": "Zimbabwe",
                     "type": "LINE"
@@ -177,13 +117,73 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
-                    "placeDcidOverride": "country/AGO",
+                    "placeDcidOverride": "country/GIN",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057"
                     ],
-                    "title": "Angola",
+                    "title": "Guinea",
+                    "type": "LINE"
+                  }
+                ]
+              },
+              {
+                "tiles": [
+                  {
+                    "lineTileSpec": {
+                      "startDate": "2016"
+                    },
+                    "placeDcidOverride": "country/MDG",
+                    "statVarKey": [
+                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057"
+                    ],
+                    "title": "Madagascar",
+                    "type": "LINE"
+                  }
+                ]
+              },
+              {
+                "tiles": [
+                  {
+                    "lineTileSpec": {
+                      "startDate": "2016"
+                    },
+                    "placeDcidOverride": "country/ZMB",
+                    "statVarKey": [
+                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057"
+                    ],
+                    "title": "Zambia",
+                    "type": "LINE"
+                  }
+                ]
+              },
+              {
+                "tiles": [
+                  {
+                    "lineTileSpec": {
+                      "startDate": "2016"
+                    },
+                    "placeDcidOverride": "country/MLI",
+                    "statVarKey": [
+                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057"
+                    ],
+                    "title": "Mali",
+                    "type": "LINE"
+                  }
+                ]
+              },
+              {
+                "tiles": [
+                  {
+                    "lineTileSpec": {
+                      "startDate": "2016"
+                    },
+                    "placeDcidOverride": "country/TZA",
+                    "statVarKey": [
+                      "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057"
+                    ],
+                    "title": "Tanzania",
                     "type": "LINE"
                   }
                 ]
@@ -198,11 +198,11 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
                     "placeDcidOverride": "country/RWA",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057"
                     ],
                     "title": "Rwanda",
                     "type": "LINE"
@@ -213,11 +213,11 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
                     "placeDcidOverride": "country/UGA",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057"
                     ],
                     "title": "Uganda",
                     "type": "LINE"
@@ -228,13 +228,13 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
-                    "placeDcidOverride": "country/KEN",
+                    "placeDcidOverride": "country/MDG",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057"
                     ],
-                    "title": "Kenya",
+                    "title": "Madagascar",
                     "type": "LINE"
                   }
                 ]
@@ -243,13 +243,13 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
-                    "placeDcidOverride": "country/ETH",
+                    "placeDcidOverride": "country/BEN",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057"
                     ],
-                    "title": "Ethiopia",
+                    "title": "Benin",
                     "type": "LINE"
                   }
                 ]
@@ -258,11 +258,26 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
+                    },
+                    "placeDcidOverride": "country/GIN",
+                    "statVarKey": [
+                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057"
+                    ],
+                    "title": "Guinea",
+                    "type": "LINE"
+                  }
+                ]
+              },
+              {
+                "tiles": [
+                  {
+                    "lineTileSpec": {
+                      "startDate": "2016"
                     },
                     "placeDcidOverride": "country/TZA",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057"
                     ],
                     "title": "Tanzania",
                     "type": "LINE"
@@ -273,13 +288,13 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
-                    "placeDcidOverride": "country/SSD",
+                    "placeDcidOverride": "country/ZWE",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057"
                     ],
-                    "title": "South Sudan",
+                    "title": "Zimbabwe",
                     "type": "LINE"
                   }
                 ]
@@ -288,11 +303,11 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
                     "placeDcidOverride": "country/ZMB",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057"
                     ],
                     "title": "Zambia",
                     "type": "LINE"
@@ -303,13 +318,13 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
-                    "placeDcidOverride": "country/MLI",
+                    "placeDcidOverride": "country/KEN",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057"
                     ],
-                    "title": "Mali",
+                    "title": "Kenya",
                     "type": "LINE"
                   }
                 ]
@@ -318,28 +333,13 @@
                 "tiles": [
                   {
                     "lineTileSpec": {
-                      "startDate": "2014"
+                      "startDate": "2016"
                     },
-                    "placeDcidOverride": "country/COD",
+                    "placeDcidOverride": "country/MWI",
                     "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879"
+                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057"
                     ],
-                    "title": "Congo [DRC]",
-                    "type": "LINE"
-                  }
-                ]
-              },
-              {
-                "tiles": [
-                  {
-                    "lineTileSpec": {
-                      "startDate": "2014"
-                    },
-                    "placeDcidOverride": "country/MDG",
-                    "statVarKey": [
-                      "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879"
-                    ],
-                    "title": "Madagascar",
+                    "title": "Malawi",
                     "type": "LINE"
                   }
                 ]
@@ -350,18 +350,18 @@
           }
         ],
         "statVarSpec": {
-          "worldBank/EG_ELC_ACCS_ZS10_3629701879": {
-            "facetId": "3629701879",
+          "worldBank/EG_ELC_ACCS_ZS10_4031432057": {
+            "facetId": "4031432057",
             "name": "Population With Electricity Access (%)",
             "statVar": "worldBank/EG_ELC_ACCS_ZS"
           },
-          "worldBank/EG_ELC_ACCS_ZS_growth_abs_3629701879": {
-            "facetId": "3629701879",
+          "worldBank/EG_ELC_ACCS_ZS_growth_abs_4031432057": {
+            "facetId": "4031432057",
             "name": "Population With Electricity Access (%)",
             "statVar": "worldBank/EG_ELC_ACCS_ZS"
           },
-          "worldBank/EG_ELC_ACCS_ZS_growth_pct_3629701879": {
-            "facetId": "3629701879",
+          "worldBank/EG_ELC_ACCS_ZS_growth_pct_4031432057": {
+            "facetId": "4031432057",
             "name": "Population With Electricity Access (%)",
             "statVar": "worldBank/EG_ELC_ACCS_ZS"
           }
@@ -370,7 +370,7 @@
     ],
     "metadata": {
       "placeDcid": [
-        "country/KEN"
+        "country/RWA"
       ]
     }
   },
@@ -787,6 +787,5 @@
     ]
   },
   "svSource": "CURRENT_QUERY",
-  "userMessage": "",
   "userMessages": []
 }

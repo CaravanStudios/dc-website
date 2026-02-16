@@ -24,21 +24,23 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { DataGroup, DataPoint } from "../../chart/base";
 import { drawDonutChart } from "../../chart/draw_donut";
 import { CSV_FIELD_DELIMITER } from "../../constants/tile_constants";
+import { useLazyLoad } from "../../shared/hooks";
 import { PointApiResponse, SeriesApiResponse } from "../../shared/stat_types";
 import { NamedTypedPlace, StatVarSpec } from "../../shared/types";
 import { RankingPoint } from "../../types/ranking_unit_types";
-import { getPoint, getSeries } from "../../utils/data_fetch_utils";
-import { datacommonsClient } from "../../utils/datacommons_client";
+import { getDataCommonsClient } from "../../utils/data_commons_client";
+import { getPoint } from "../../utils/data_fetch_utils";
 import { getPlaceNames } from "../../utils/place_utils";
 import { getDateRange } from "../../utils/string_utils";
 import {
+  clearContainer,
   getDenomInfo,
+  getDenomResp,
   getFirstCappedStatVarSpecDate,
   getNoDataErrorMsg,
   getStatFormat,
   getStatVarNames,
   ReplacementStrings,
-  showError,
   transformCsvHeader,
 } from "../../utils/tile_utils";
 import { ChartTileContainer } from "./chart_tile";
@@ -74,6 +76,15 @@ export interface DonutTilePropType {
   subtitle?: string;
   // Optional: Override sources for this tile
   sources?: string[];
+  // Optional: only load this component when it's near the viewport
+  lazyLoad?: boolean;
+  /**
+   * Optional: If lazy loading is enabled, load the component when it is within
+   * this margin of the viewport. Default: "0px"
+   */
+  lazyLoadMargin?: string;
+  // Optional: Passed into mixer calls to differentiate website and web components in usage logs
+  surface?: string;
 }
 
 interface DonutChartData {
@@ -89,15 +100,18 @@ export function DonutTile(props: DonutTilePropType): JSX.Element {
   const [donutChartData, setDonutChartData] = useState<
     DonutChartData | undefined
   >(null);
-
+  const { shouldLoad, containerRef } = useLazyLoad(props.lazyLoadMargin);
   useEffect(() => {
+    if (props.lazyLoad && !shouldLoad) {
+      return;
+    }
     if (!donutChartData) {
-      (async () => {
+      (async (): Promise<void> => {
         const data = await fetchData(props);
         setDonutChartData(data);
       })();
     }
-  }, [props, donutChartData]);
+  }, [props, donutChartData, shouldLoad]);
 
   const drawFn = useCallback(() => {
     if (_.isEmpty(donutChartData)) {
@@ -113,19 +127,26 @@ export function DonutTile(props: DonutTilePropType): JSX.Element {
       id={props.id}
       title={props.title}
       subtitle={props.subtitle}
+      apiRoot={props.apiRoot}
       sources={props.sources || (donutChartData && donutChartData.sources)}
       replacementStrings={getReplacementStrings(props, donutChartData)}
       className={`${props.className} bar-chart`}
       allowEmbed={true}
       getDataCsv={getDataCsvCallback(props)}
       isInitialLoading={_.isNull(donutChartData)}
-      hasErrorMsg={donutChartData && !!donutChartData.errorMsg}
+      errorMsg={donutChartData && donutChartData.errorMsg}
       footnote={props.footnote}
+      forwardRef={containerRef}
+      statVarSpecs={props.statVarSpec}
+      surface={props.surface}
     >
       <div
         id={props.id}
         className="svg-container"
-        style={{ minHeight: props.svgChartHeight }}
+        style={{
+          minHeight: props.svgChartHeight,
+          display: donutChartData && donutChartData.errorMsg ? "none" : "block",
+        }}
         ref={chartContainerRef}
       ></div>
     </ChartTileContainer>
@@ -139,13 +160,17 @@ export function DonutTile(props: DonutTilePropType): JSX.Element {
  */
 function getDataCsvCallback(props: DonutTilePropType): () => Promise<string> {
   return () => {
+    const dataCommonsClient = getDataCommonsClient(
+      props.apiRoot,
+      props.surface
+    );
     // Assume all variables will have the same date
     // TODO: Update getCsv to handle different dates for different variables
     const date = getFirstCappedStatVarSpecDate(props.statVarSpec);
     const perCapitaVariables = props.statVarSpec
       .filter((v) => v.denom)
       .map((v) => v.statVar);
-    return datacommonsClient.getCsv({
+    return dataCommonsClient.getCsv({
       date,
       entities: [props.place.dcid],
       fieldDelimiter: CSV_FIELD_DELIMITER,
@@ -167,7 +192,9 @@ export function getReplacementStrings(
   };
 }
 
-export const fetchData = async (props: DonutTilePropType) => {
+export const fetchData = async (
+  props: DonutTilePropType
+): Promise<DonutChartData> => {
   // Assume all variables will have the same date
   // TODO: Handle different dates for different variables
   const date = getFirstCappedStatVarSpecDate(props.statVarSpec);
@@ -183,11 +210,19 @@ export const fetchData = async (props: DonutTilePropType) => {
       [props.place.dcid],
       [statSvs, FILTER_STAT_VAR].flat(1),
       date,
-      [statSvs]
+      [statSvs],
+      null, // highlightFacet
+      null, // facetIds
+      props.surface
     );
-    const denomResp = _.isEmpty(denomSvs)
-      ? null
-      : await getSeries(props.apiRoot, [props.place.dcid], denomSvs);
+    const [denomsByFacet, defaultDenomData] = await getDenomResp(
+      denomSvs,
+      statResp,
+      props.apiRoot,
+      false,
+      props.surface,
+      [props.place.dcid]
+    );
 
     // Find the most populated places.
     let popPoints: RankingPoint[] = [];
@@ -213,7 +248,8 @@ export const fetchData = async (props: DonutTilePropType) => {
     return rawToChart(
       props,
       statResp,
-      denomResp,
+      denomsByFacet,
+      defaultDenomData,
       popPoints,
       placeNames,
       statVarDcidToName
@@ -227,7 +263,8 @@ export const fetchData = async (props: DonutTilePropType) => {
 function rawToChart(
   props: DonutTilePropType,
   statData: PointApiResponse,
-  denomData: SeriesApiResponse,
+  denomsByFacet: Record<string, SeriesApiResponse>,
+  defaultDenomData: SeriesApiResponse,
   popPoints: RankingPoint[],
   placeNames: Record<string, string>,
   statVarNames: Record<string, string>
@@ -258,7 +295,14 @@ function rawToChart(
         sources.add(raw.facets[stat.facet].provenanceUrl);
       }
       if (spec.denom) {
-        const denomInfo = getDenomInfo(spec, denomData, placeDcid, stat.date);
+        const denomInfo = getDenomInfo(
+          spec,
+          denomsByFacet,
+          placeDcid,
+          stat.date,
+          stat.facet,
+          defaultDenomData
+        );
         if (!denomInfo) {
           // skip this data point because missing denom data.
           continue;
@@ -297,7 +341,7 @@ export function draw(
   svgWidth?: number
 ): void {
   if (chartData.errorMsg) {
-    showError(chartData.errorMsg, svgContainer);
+    clearContainer(svgContainer);
     return;
   }
   drawDonutChart(

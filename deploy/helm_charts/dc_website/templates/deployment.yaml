@@ -1,3 +1,4 @@
+
 # Website App Kubernetes Deployment config. (https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)
 # This is to be extended by the dev/autopush/staging/prod overlay.
 # The deployment contains Flask web server container , gRPC mixer container and ESP container that transcodes grpc to JSON.
@@ -59,29 +60,9 @@ spec:
         - name: blocklist-svg
           configMap:
             name: blocklist-svg
-        {{- if .Values.website.placeSummary.enabled }}
-        - name: place-summary-config-country
-          configMap:
-            name: place-summary-config-country
-        - name: place-summary-config-geoid-0-2
-          configMap:
-            name: place-summary-config-geoid-0-2
-        - name: place-summary-config-geoid-3-5
-          configMap:
-            name: place-summary-config-geoid-3-5
-        - name: place-summary-config-geoid-6-9
-          configMap:
-            name: place-summary-config-geoid-6-9
-        - name: place-summary-config-wikidataid
-          configMap:
-            name: place-summary-config-wikidataid
-        - name: place-summary-config-others
-          configMap:
-            name: place-summary-config-others
-        {{- end }}
       containers:
         - name: website
-          image:  "gcr.io/{{ .Values.website.image.project }}/datacommons-website:{{ .Values.website.image.tag }}"
+          image: "gcr.io/datcom-ci/datacommons-website{{- if .Values.website.image.tag }}:{{ .Values.website.image.tag }}{{- end }}"
           imagePullPolicy: {{ .Values.website.image.pullPolicy }}
           args: []
           ports:
@@ -100,9 +81,9 @@ spec:
             periodSeconds: 10
           resources:
             limits:
-              memory: "3G"
+              memory: "4G"
             requests:
-              memory: "3G"
+              memory: "4G"
           volumeMounts:
             - name: ingress-config
               mountPath: /datacommons/ingress
@@ -112,20 +93,6 @@ spec:
             {{- end }}
             - name: blocklist-svg
               mountPath: /datacommons/svg
-            {{- if .Values.website.placeSummary.enabled }}
-            - name: place-summary-config-country
-              mountPath: /datacommons/place-summary/country_
-            - name: place-summary-config-geoid-0-2
-              mountPath: /datacommons/place-summary/geoId_0-2
-            - name: place-summary-config-geoid-3-5
-              mountPath: /datacommons/place-summary/geoId_3-5
-            - name: place-summary-config-geoid-6-9
-              mountPath: /datacommons/place-summary/geoId_6-9
-            - name: place-summary-config-wikidataid
-              mountPath: /datacommons/place-summary/wikidataId_
-            - name: place-summary-config-others
-              mountPath: /datacommons/place-summary/others
-            {{- end }}
           env:
             - name: FLASK_ENV
               value: {{ required "Missing: website.flaskEnv" .Values.website.flaskEnv }}
@@ -133,8 +100,8 @@ spec:
               value: {{ .Values.website.githash | quote }}
             - name: ENABLE_MODEL
               value: {{ .Values.nl.enabled | quote }}
-            - name: ENABLE_EVAL_TOOL
-              value: {{ .Values.website.evalTool.enabled | quote }}
+            - name: ENABLE_DATAGEMMA
+              value: {{ .Values.website.dataGemma.enabled | quote }}
             - name: INGRESS_CONFIG_PATH
               value: /datacommons/ingress/rules
             # A dummy config used to bounce the server without any docker image
@@ -143,7 +110,7 @@ spec:
               value: "dummy"
         {{- if .Values.nl.enabled }}
         - name: nl
-          image: gcr.io/datcom-ci/datacommons-nl:{{ .Values.website.image.tag }}
+          image: "gcr.io/datcom-ci/datacommons-nl{{- if .Values.nl.image.tag }}:{{ .Values.nl.image.tag }}{{- end }}"
           resources:
             limits:
               memory: {{ .Values.nl.memory }}
@@ -162,6 +129,7 @@ spec:
               path: /healthz
               port: 6060
             failureThreshold: 30
+            periodSeconds: 10
             timeoutSeconds: 5
           readinessProbe:
             httpGet:
@@ -172,11 +140,13 @@ spec:
             # there's already NUM_WORKERS number of requests, need to wait
             # before /healthz can be served.
             timeoutSeconds: 300
+            periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /healthz
               port: 6060
             timeoutSeconds: 300
+            periodSeconds: 10
           ports:
             - containerPort: 6060
         {{- end }}
@@ -217,7 +187,7 @@ spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       containers:
         - name: nodejs
-          image:  "gcr.io/{{ .Values.website.image.project }}/datacommons-nodejs:{{ .Values.website.image.tag }}"
+          image: "gcr.io/datcom-ci/datacommons-nodejs{{- if .Values.nodejs.image.tag }}:{{ .Values.nodejs.image.tag }}{{- end }}"
           imagePullPolicy: {{ .Values.website.image.pullPolicy }}
           args: []
           ports:

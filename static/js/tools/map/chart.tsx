@@ -19,29 +19,36 @@
  */
 
 import * as d3 from "d3";
-import React, { ReactNode, useContext, useEffect } from "react";
+import React, {
+  ReactElement,
+  ReactNode,
+  RefObject,
+  useContext,
+  useEffect,
+} from "react";
 import { Card, Container, FormGroup, Input, Label } from "reactstrap";
 
 import { GeoJsonData, MapPoint } from "../../chart/types";
-import { FacetSelectorFacetInfo } from "../../shared/facet_selector";
+import { FacetSelectorFacetInfo } from "../../shared/facet_selector/facet_selector";
 import {
   GA_EVENT_TOOL_CHART_PLOT,
   GA_PARAM_PLACE_DCID,
   GA_PARAM_STAT_VAR,
   triggerGAEvent,
 } from "../../shared/ga_events";
-import { DataPointMetadata, NamedPlace } from "../../shared/types";
-import { ToolChartFooter } from "../shared/tool_chart_footer";
-import { StatVarInfo } from "../timeline/chart_region";
+import { ObservationSpec } from "../../shared/observation_specs";
+import { StatVarInfo } from "../../shared/stat_var";
+import { DataPointMetadata } from "../../shared/types";
+import {
+  getFacetMetadataFromFacetList,
+  getStatVarMetadataFromFacets,
+} from "../../shared/util";
+import { ToolChartFooter } from "../shared/vis_tools/tool_chart_footer";
+import { ToolChartHeader } from "../shared/vis_tools/tool_chart_header";
 import { Context } from "./context";
 import { D3Map } from "./d3_map";
-// import { LeafletMap } from "./leaflet_map";
 import { getTitle } from "./util";
 
-export enum MAP_TYPE {
-  LEAFLET,
-  D3,
-}
 interface ChartProps {
   geoJsonData: GeoJsonData;
   mapDataValues: { [dcid: string]: number };
@@ -52,13 +59,21 @@ interface ChartProps {
   unit: string;
   mapPointValues: { [dcid: string]: number };
   mapPoints: Array<MapPoint>;
-  europeanCountries: Array<NamedPlace>;
   rankingLink: string;
   facetList: FacetSelectorFacetInfo[];
-  geoRaster: any;
-  mapType: MAP_TYPE;
+  facetListLoading: boolean;
+  facetListError: boolean;
   children: ReactNode;
   borderGeoJsonData?: GeoJsonData;
+  // A function passed through from the chart that handles the task
+  // of creating the embedding used in the download functionality.
+  handleEmbed?: () => void;
+  // A callback function passed through from the chart that will collate
+  // a set of observation specs relevant to the chart. These
+  // specs can be hydrated into API calls.
+  getObservationSpecs?: () => ObservationSpec[];
+  // A ref to the chart container element.
+  containerRef?: RefObject<HTMLElement>;
 }
 
 export const MAP_CONTAINER_ID = "choropleth-map";
@@ -67,7 +82,7 @@ const DATE_RANGE_INFO_ID = "date-range-info";
 const DATE_RANGE_INFO_TEXT_ID = "date-range-tooltip-text";
 export const SECTION_CONTAINER_ID = "map-chart";
 
-export function Chart(props: ChartProps): JSX.Element {
+export function Chart(props: ChartProps): ReactElement {
   const { placeInfo, statVar, display } = useContext(Context);
 
   const mainSvInfo: StatVarInfo =
@@ -90,8 +105,42 @@ export function Chart(props: ChartProps): JSX.Element {
     });
   }, [statVar.value.dcid, placeInfo.value.enclosingPlace.dcid]);
 
+  // Get stat var metadata to use in metadata modal
+  const { statVarToFacets, statVarSpecs } = getStatVarMetadataFromFacets(
+    props.facetList,
+    { [statVar.value.dcid]: statVar.value.metahash },
+    statVar.value.perCapita,
+    props.unit,
+    false // There is no log option for maps
+  );
+
+  // Calculate date ranges for each stat var to use in metadata modal
+  const statVarDateRanges: Record<
+    string,
+    { minDate: string; maxDate: string }
+  > = {};
+  if (props.dates.size > 0) {
+    const datesArr = Array.from(props.dates);
+    let minDate = datesArr[0];
+    let maxDate = datesArr[0];
+    datesArr.forEach((date) => {
+      if (date < minDate) minDate = date;
+      if (date > maxDate) maxDate = date;
+    });
+    statVarDateRanges[statVar.value.dcid] = { minDate, maxDate };
+  }
+
   return (
     <div className="chart-section-container">
+      <ToolChartHeader
+        svFacetId={{ [statVarDcid]: statVar.value.metahash }}
+        facetList={props.facetList}
+        onSvFacetIdUpdated={(svFacetId): void =>
+          statVar.setMetahash(svFacetId[statVar.value.dcid])
+        }
+        facetListLoading={props.facetListLoading}
+        facetListError={props.facetListError}
+      />
       <Card className="chart-section-card">
         <Container id={SECTION_CONTAINER_ID} fluid={true}>
           <div id="map-chart-screen" className="screen">
@@ -116,15 +165,6 @@ export function Chart(props: ChartProps): JSX.Element {
                 map.
               </div>
             </div>
-            {/* Disable LEAFLET as georaster-layer-for-leaflet can not be compiled server side in commonjs mode, see tsconfing.json "module": "CommonJS" */}
-            {/* {props.mapType === MAP_TYPE.LEAFLET ? (
-              <LeafletMap
-                geoJsonData={props.geoJsonData}
-                geoRaster={props.geoRaster}
-                metadata={props.metadata}
-                unit={props.unit}
-              />
-            ) : ( */}
             <D3Map
               geoJsonData={props.geoJsonData}
               mapDataValues={props.mapDataValues}
@@ -132,7 +172,6 @@ export function Chart(props: ChartProps): JSX.Element {
               unit={props.unit}
               mapPointValues={props.mapPointValues}
               mapPoints={props.mapPoints}
-              europeanCountries={props.europeanCountries}
               borderGeoJsonData={props.borderGeoJsonData}
             />
             {/* )} */}
@@ -168,16 +207,18 @@ export function Chart(props: ChartProps): JSX.Element {
         chartId="map"
         sources={props.sources}
         mMethods={null}
-        svFacetId={{ [statVarDcid]: statVar.value.metahash }}
-        facetList={props.facetList}
-        onSvFacetIdUpdated={(svFacetId) =>
-          statVar.setMetahash(svFacetId[statVar.value.dcid])
-        }
-        hideIsRatio={props.mapType === MAP_TYPE.LEAFLET}
+        hideIsRatio={false}
         isPerCapita={statVar.value.perCapita}
-        onIsPerCapitaUpdated={(isPerCapita: boolean) =>
+        onIsPerCapitaUpdated={(isPerCapita: boolean): void =>
           statVar.setPerCapita(isPerCapita)
         }
+        handleEmbed={props.handleEmbed}
+        getObservationSpecs={props.getObservationSpecs}
+        containerRef={props.containerRef}
+        facets={getFacetMetadataFromFacetList(props.facetList)}
+        statVarSpecs={statVarSpecs}
+        statVarToFacets={statVarToFacets}
+        statVarDateRanges={statVarDateRanges}
       >
         {placeInfo.value.mapPointPlaceType && (
           <div className="chart-option">
@@ -187,7 +228,9 @@ export function Chart(props: ChartProps): JSX.Element {
                   id="show-installations"
                   type="checkbox"
                   checked={display.value.showMapPoints}
-                  onChange={(e) => display.setShowMapPoints(e.target.checked)}
+                  onChange={(e): void =>
+                    display.setShowMapPoints(e.target.checked)
+                  }
                 />
                 Show Installations
               </Label>
@@ -199,7 +242,7 @@ export function Chart(props: ChartProps): JSX.Element {
   );
 }
 
-const onDateRangeMouseOver = () => {
+const onDateRangeMouseOver = (): void => {
   const offset = 20;
   const left =
     (d3.select(`#${DATE_RANGE_INFO_ID}`).node() as HTMLElement).offsetLeft +
@@ -209,6 +252,6 @@ const onDateRangeMouseOver = () => {
     .style("visibility", "visible");
 };
 
-const onDateRangeMouseOut = () => {
+const onDateRangeMouseOut = (): void => {
   d3.select(`#${DATE_RANGE_INFO_TEXT_ID}`).style("visibility", "hidden");
 };

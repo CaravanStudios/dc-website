@@ -11,12 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# To run this test, please use the convenience script:
+# ./run_website_sanity.sh
 
 import csv
 from datetime import datetime
 from enum import StrEnum
 import logging
 import os
+import time
 
 from absl import app
 from absl import flags
@@ -48,6 +52,9 @@ flags.DEFINE_string(
 flags.DEFINE_string("url", None, "URL to start testing from.", required=True)
 
 _TEST_PARAM = "test=sanity"
+_ELEMENT_LOAD_TIMEOUT_SEC = 3
+_PAGE_LOAD_WAIT_SEC = 1
+_CHARTS_LOAD_TIMEOUT_SEC = 10
 
 
 def url_with_test_param(url: str):
@@ -140,45 +147,75 @@ class WebsiteSanityTest:
 
     page.title = self.driver.title if page.title is None else page.title
 
-    # topic cards
-    topic_cards = find_elems(self.driver, By.CLASS_NAME, "topic-card")
-    if topic_cards is None or len(topic_cards) == 0:
-      self.add_result(fail_result(page, start, "No topic cards."))
+    # Wait 1 second for the page to load.
+    time.sleep(_PAGE_LOAD_WAIT_SEC)
+
+    # topic items
+    topic_items = find_elems(self.driver, By.CSS_SELECTOR,
+                             '[data-testid^="chip-item-"]')
+    if topic_items is None or len(topic_items) == 0:
+      self.add_result(fail_result(page, start, "No topic items."))
       return
 
     explore_landing_pages = []
-    for topic_card in topic_cards:
-      topic_title_elem = find_elem(topic_card, By.CLASS_NAME,
-                                   "topic-card-title")
-      if topic_title_elem is None:
-        self.add_result(
-            fail_result(
-                page,
-                start,
-                "No explore landing title on one of the cards.",
-            ))
-        return
-
-      topic_url_elem = find_elem(topic_card, By.TAG_NAME, "a")
+    for topic_item in topic_items:
+      topic_url_elem = find_elem(topic_item, By.TAG_NAME, "a")
       if topic_url_elem is None:
         self.add_result(
             fail_result(
                 page,
                 start,
-                "No explore landing URL on one of the cards.",
+                "No explore landing URL on one of the topic items.",
             ))
         return
+
+      # There is a button in the topic section that leads to the data sources
+      # page. don't include it as an explore landing page.
+      if topic_url_elem.get_attribute("href").endswith("/data"):
+        continue
 
       explore_landing_pages.append(
           WebPage(
               PageType.EXPLORE_LANDING,
-              topic_title_elem.text,
+              topic_url_elem.text,
               topic_url_elem.get_attribute("href"),
+              source_url=page.url,
+          ))
+
+    # question items
+    question_items = find_elems(self.driver, By.CSS_SELECTOR,
+                                '[data-testid^="question-item-"]')
+    if question_items is None or len(question_items) == 0:
+      self.add_result(fail_result(page, start, "No question items."))
+      return
+
+    explore_pages = []
+    for question_item in question_items:
+      question_url_elem = find_elem(question_item, By.TAG_NAME, "a")
+      if question_url_elem is None:
+        self.add_result(
+            fail_result(
+                page,
+                start,
+                "No explore URL on one of the question items.",
+            ))
+        return
+      question_text_elem = find_elem(question_url_elem, By.TAG_NAME, "p")
+      question_text = question_text_elem.text if question_text_elem else question_url_elem.text
+
+      explore_pages.append(
+          WebPage(
+              PageType.EXPLORE,
+              question_text,
+              question_url_elem.get_attribute("href"),
               source_url=page.url,
           ))
 
     # Pass
     self.add_result(pass_result(page, start))
+
+    for explore_page in explore_pages:
+      self.explore(explore_page)
 
     for explore_landing_page in explore_landing_pages:
       self.explore_landing(explore_landing_page)
@@ -191,32 +228,23 @@ class WebsiteSanityTest:
 
     page.title = self.driver.title if page.title is None else page.title
 
-    # topics
-    topics = find_elems(self.driver, By.CLASS_NAME, "item-list-text")
-    if topics is None or len(topics) == 0:
-      self.add_result(fail_result(page, start, "No topics."))
-      return
-
     # queries
-    queries_parent = find_elem(
-        self.driver,
-        By.CSS_SELECTOR,
-        "#dc-explore-landing > div > div > div.topic-container > div.topic-queries",
-    )
-    if queries_parent is None:
-      self.add_result(fail_result(page, start, "No queries."))
-      return
-    queries = find_elems(queries_parent, By.TAG_NAME, "a")
-    if queries is None or len(queries) == 0:
-      self.add_result(fail_result(page, start, "No queries."))
+    try:
+      queries = WebDriverWait(self.driver, _ELEMENT_LOAD_TIMEOUT_SEC).until(
+          EC.presence_of_all_elements_located(
+              (By.CSS_SELECTOR, '[data-testid^="query-link-"]')))
+    except:
+      self.add_result(
+          fail_result(
+              page, start,
+              "Timed out waiting for query links in explore landing page."))
       return
 
     # Pass
     self.add_result(pass_result(page, start))
 
-    explore_links = topics + queries
     explore_pages = []
-    for link in explore_links:
+    for link in queries:
       explore_pages.append(
           WebPage(
               PageType.EXPLORE,
@@ -240,7 +268,7 @@ class WebsiteSanityTest:
 
     # Wait 10 secs for charts container to load
     try:
-      WebDriverWait(self.driver, 10).until(
+      WebDriverWait(self.driver, _CHARTS_LOAD_TIMEOUT_SEC).until(
           EC.presence_of_element_located((By.CLASS_NAME, "explore-charts")))
     except:
       self.add_result(fail_result(
@@ -253,7 +281,7 @@ class WebsiteSanityTest:
     # Wait couple more seconds for subtopics (i.e. charts) to load
     subtopics = None
     try:
-      subtopics = WebDriverWait(self.driver, 2).until(
+      subtopics = WebDriverWait(self.driver, _ELEMENT_LOAD_TIMEOUT_SEC).until(
           EC.presence_of_all_elements_located(
               (By.CSS_SELECTOR, "section[class*='block subtopic']")))
     except:

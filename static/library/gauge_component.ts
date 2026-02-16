@@ -24,7 +24,7 @@ import {
   GaugeTile,
   GaugeTilePropType,
 } from "../js/components/tiles/gauge_tile";
-import { DEFAULT_PER_CAPITA_DENOM } from "./constants";
+import { DEFAULT_PER_CAPITA_DENOM, WEB_COMPONENT_SURFACE } from "./constants";
 import {
   convertArrayAttribute,
   createWebComponentElement,
@@ -97,7 +97,7 @@ export class DatacommonsGaugeComponent extends LitElement {
   @property({ type: Array<string>, converter: convertArrayAttribute })
   sources?: string[];
 
-  render(): HTMLElement {
+  render(): HTMLDivElement {
     const gaugeTileProps: GaugeTilePropType = {
       apiRoot: getApiRoot(this.apiRoot),
       colors: this.colors,
@@ -125,6 +125,7 @@ export class DatacommonsGaugeComponent extends LitElement {
       },
       svgChartHeight: 200,
       title: this.header || this.title,
+      surface: WEB_COMPONENT_SURFACE,
     };
     return createWebComponentElement(GaugeTile, gaugeTileProps);
   }

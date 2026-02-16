@@ -16,7 +16,10 @@ from server.app_env import _base
 
 
 class Config(_base.Config):
-  GA_ACCOUNT = 'G-HV2XYYS1JD'
+  GOOGLE_ANALYTICS_TAG_ID = 'G-HV2XYYS1JD'
   USE_LLM = True
   LOG_QUERY = True
-  USE_MEMCACHE = False
+  ENABLE_BQ = True
+  LOG_DC_REQUEST_PAYLOAD = True
+  LOG_DC_REQUEST_PAYLOAD_PERCENTAGE = 100
+  DISABLE_CRAWLERS = True

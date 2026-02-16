@@ -22,6 +22,8 @@ from flask import redirect
 from flask import request
 from flask_babel import Babel
 import flask_cors
+from google.api_core.exceptions import NotFound
+from google.api_core.exceptions import PermissionDenied
 from google.cloud import secretmanager
 import google.cloud.logging
 
@@ -29,20 +31,71 @@ from server.lib import topic_cache
 import server.lib.cache as lib_cache
 import server.lib.config as lib_config
 from server.lib.disaster_dashboard import get_disaster_dashboard_data
+from server.lib.feature_flags import BIOMED_NL_FEATURE_FLAG
+from server.lib.feature_flags import DATA_OVERVIEW_FEATURE_FLAG
+from server.lib.feature_flags import ENABLE_NL_AGENT_DETECTOR
+from server.lib.feature_flags import is_feature_enabled
 import server.lib.i18n as i18n
 from server.lib.nl.common.bad_words import EMPTY_BANNED_WORDS
 from server.lib.nl.common.bad_words import load_bad_words
 from server.lib.nl.detection import llm_prompt
+from server.lib.nl.detection.agent.agent import create_detection_agent
 import server.lib.util as libutil
 import server.services.bigtable as bt
 from server.services.discovery import configure_endpoints_from_ingress
 from server.services.discovery import get_health_check_urls
-import shared.lib.gcp as lib_gcp
-from shared.lib.utils import is_debug_mode
+from shared.lib import gcp as lib_gcp
+from shared.lib import utils as lib_utils
 
 BLOCKLIST_SVG_FILE = "/datacommons/svg/blocklist_svg.json"
 
 DEFAULT_NL_ROOT = "http://127.0.0.1:6060"
+
+
+def _get_api_key(env_keys=[], gcp_project='', gcp_path=''):
+  """Gets an api key first from the environment, then from GCP secrets.
+  
+  Args:
+      env_keys: A list of keys in the environment to try getting the api key with
+      gcp_project: The GCP project to use to get the api key from GCP secrets
+      gcp_path: The path to getting the api key from GCP secrets
+
+  Returns:
+      API key if it exists, otherwise an empty string.
+    """
+  # Try to get the key from the environment
+  for k in env_keys:
+    if os.environ.get(k):
+      return os.environ.get(k)
+
+  # Try to get the key from secrets
+  if gcp_project and gcp_path:
+    try:
+      secret_client = secretmanager.SecretManagerServiceClient()
+      secret_name = secret_client.secret_version_path(gcp_project, gcp_path,
+                                                      'latest')
+      secret_response = secret_client.access_secret_version(name=secret_name)
+      return secret_response.payload.data.decode('UTF-8').replace('\n', '')
+    except NotFound:
+      logging.warning(
+          f'No key found at {gcp_path} of the configured GCP project.')
+      return ''
+    except PermissionDenied as e:
+      logging.warning(e)
+      return ''
+
+  # If key is not found, return an empty string
+  logging.warning(
+      f'No key found in the [{",".join(env_keys)}] environment variable(s), nor at "{gcp_path}" of the configured GCP project.'
+  )
+  return ''
+
+
+def _enable_datagemma() -> bool:
+  """Returns whether to enable the DataGemma UI for this instance. 
+  This UI should only be enabled for internal instances.
+  """
+  return os.environ.get('ENABLE_DATAGEMMA') == 'true'
 
 
 def register_routes_base_dc(app):
@@ -59,9 +112,6 @@ def register_routes_base_dc(app):
   from server.routes import redirects
   app.register_blueprint(redirects.bp)
 
-  from server.routes.screenshot import html as screenshot_html
-  app.register_blueprint(screenshot_html.bp)
-
   from server.routes.special_announcement import \
       html as special_announcement_html
   app.register_blueprint(special_announcement_html.bp)
@@ -75,29 +125,10 @@ def register_routes_base_dc(app):
   from server.routes.disaster import api as disaster_api
   app.register_blueprint(disaster_api.bp)
 
-
 def register_routes_custom_dc(app):
   ## apply the blueprints for custom dc instances
   from server.routes.ts_issue_landing import html as ts_issue_landing_html
   app.register_blueprint(ts_issue_landing_html.bp)
-
-def register_routes_biomedical_dc(app):
-  # Apply the blueprints specific to biomedical dc
-  from server.routes.biomedical import html as bio_html
-  app.register_blueprint(bio_html.bp)
-
-  from server.routes.disease import api as disease_api
-  app.register_blueprint(disease_api.bp)
-
-  from server.routes.disease import html as disease_html
-  app.register_blueprint(disease_html.bp)
-
-  from server.routes.protein import api as protein_api
-  app.register_blueprint(protein_api.bp)
-
-  from server.routes.protein import html as protein_html
-  app.register_blueprint(protein_html.bp)
-
 
 def register_routes_disasters(app):
   # Install blueprints specific to disasters
@@ -137,9 +168,41 @@ def register_routes_sustainability(app):
       )
 
 
-def register_routes_admin(app):
-  from server.routes.admin import html as admin_html
-  app.register_blueprint(admin_html.bp)
+def register_routes_datagemma(app, cfg):
+  # Set the gemini api key
+  app.config['GEMINI_API_KEY'] = _get_api_key(['GEMINI_API_KEY'],
+                                              cfg.SECRET_PROJECT,
+                                              'gemini-api-key')
+  # Set the DC NL api key
+  app.config['DC_NL_API_KEY'] = _get_api_key(['DC_NL_API_KEY'],
+                                             cfg.SECRET_PROJECT,
+                                             'dc-nl-api-key')
+  if not app.config['GEMINI_API_KEY'] or not app.config['DC_NL_API_KEY']:
+    app.logger.warning('DataGemma routes not registered due to missing API key')
+    return
+
+  # Install blueprint for DataGemma page
+  from server.routes.dev_datagemma import api as dev_datagemma_api
+  app.register_blueprint(dev_datagemma_api.bp)
+  from server.routes.dev_datagemma import html as dev_datagemma_html
+  app.register_blueprint(dev_datagemma_html.bp)
+
+
+def register_routes_biomed_nl(app, cfg):
+  # Set the gemini api key
+  app.config['BIOMED_NL_GEMINI_API_KEY'] = _get_api_key(
+      ['BIOMED_NL_GEMINI_API_KEY'], cfg.SECRET_PROJECT,
+      'biomed-nl-gemini-api-key')
+
+  if not app.config['BIOMED_NL_GEMINI_API_KEY']:
+    app.logger.warning('Biomed NL routes not registered due to missing API key')
+    return
+
+  # Install blueprint for experimental biomed NL page
+  from server.routes.experiments.biomed_nl import api as biomed_nl_api
+  app.register_blueprint(biomed_nl_api.bp)
+  from server.routes.experiments.biomed_nl import html as biomed_nl_html
+  app.register_blueprint(biomed_nl_html.bp)
 
 
 def register_routes_common(app):
@@ -162,6 +225,9 @@ def register_routes_common(app):
   from server.routes.place import html as place_html
   app.register_blueprint(place_html.bp)
 
+  from server.routes.place import api as place_api
+  app.register_blueprint(place_api.bp)
+
   from server.routes.ranking import html as ranking_html
   app.register_blueprint(ranking_html.bp)
 
@@ -175,14 +241,8 @@ def register_routes_common(app):
   from server.routes.browser import api as browser_api
   app.register_blueprint(browser_api.bp)
 
-  from server.routes.place import api as place_api
-  app.register_blueprint(place_api.bp)
-
   from server.routes.ranking import api as ranking_api
   app.register_blueprint(ranking_api.bp)
-
-  from server.routes.translator import api as translator_api
-  app.register_blueprint(translator_api.bp)
 
   from server.routes.nl import api as nl_api
   app.register_blueprint(nl_api.bp)
@@ -207,6 +267,10 @@ def register_routes_common(app):
 
   from server.routes.shared_api import stats as shared_stats
   app.register_blueprint(shared_stats.bp)
+
+  from server.routes.shared_api.autocomplete import \
+      autocomplete as shared_autocomplete
+  app.register_blueprint(shared_autocomplete.bp)
 
   from server.routes.shared_api import variable as shared_variable
   app.register_blueprint(shared_variable.bp)
@@ -240,7 +304,12 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
 
   cfg = lib_config.get_config()
 
-  if lib_gcp.in_google_network():
+  # Initialize Webdriver recorder/replay if enabled
+  if os.environ.get('WEBDRIVER_RECORDING_MODE'):
+    from server.lib import recorder
+    recorder.init_recorder(app)
+
+  if lib_gcp.in_google_network() and not lib_utils.is_test_env():
     client = google.cloud.logging.Client()
     client.setup_logging()
   else:
@@ -252,7 +321,7 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
     )
 
   log_level = logging.WARNING
-  if is_debug_mode():
+  if lib_utils.is_debug_mode():
     log_level = logging.INFO
   logging.getLogger('werkzeug').setLevel(log_level)
 
@@ -260,19 +329,18 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
   app.config.from_object(cfg)
 
   # Check DC_API_KEY is set for local dev.
-  if cfg.CUSTOM and cfg.LOCAL and not os.environ.get('DC_API_KEY'):
+  if (cfg.LITE or
+      (cfg.CUSTOM and cfg.LOCAL)) and not os.environ.get('DC_API_KEY'):
     raise Exception(
         'Set environment variable DC_API_KEY for local custom DC development')
 
-  app.config['NL_ROOT'] = nl_root
-  app.config['ENABLE_ADMIN'] = os.environ.get('ENABLE_ADMIN', '') == 'true'
-
-  if os.environ.get('ENABLE_EVAL_TOOL') == 'true':
-    import shared.model.loader as model_loader
-    app.config['VERTEX_AI_MODELS'] = model_loader.load()
+  # Use NL_SERVICE_ROOT if it's set, otherwise use nl_root argument
+  app.config['NL_ROOT'] = os.environ.get("NL_SERVICE_ROOT_URL", nl_root)
 
   lib_cache.cache.init_app(app)
   lib_cache.model_cache.init_app(app)
+  app.config['FEATURE_FLAGS'] = libutil.load_feature_flags()
+  app.config['REDIRECTS'] = libutil.load_redirects() if not cfg.CUSTOM else {}
 
   # Configure ingress
   # See deployment yamls.
@@ -280,13 +348,7 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
   if ingress_config_path:
     configure_endpoints_from_ingress(ingress_config_path)
 
-
-
-  if os.environ.get('FLASK_ENV') == 'biomedical':
-    register_routes_biomedical_dc(app)
-  else:
-    register_routes_custom_dc(app)
-
+  register_routes_custom_dc(app)
   register_routes_common(app)
   register_routes_base_dc(app)
 
@@ -296,8 +358,15 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
   if cfg.SHOW_SUSTAINABILITY:
     register_routes_sustainability(app)
 
-  if app.config['ENABLE_ADMIN']:
-    register_routes_admin(app)
+  if _enable_datagemma():
+    register_routes_datagemma(app, cfg)
+
+  if is_feature_enabled(BIOMED_NL_FEATURE_FLAG, app):
+    register_routes_biomed_nl(app, cfg)
+
+  if is_feature_enabled(DATA_OVERVIEW_FEATURE_FLAG, app):
+    from server.routes.data_overview import html as data_overview_html
+    app.register_blueprint(data_overview_html.bp)
 
   # Load topic page config
   topic_page_configs = libutil.get_topic_page_config()
@@ -310,7 +379,10 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
   app.config['CHART_CONFIG'] = chart_config
   ranked_statvars = set()
   for chart in chart_config:
-    ranked_statvars = ranked_statvars.union(chart['statsVars'])
+    ranked_statvars = ranked_statvars.union(
+        chart['statsVars']) if 'statsVars' in chart else ranked_statvars
+    ranked_statvars = ranked_statvars.union(
+        chart['variables']) if 'variables' in chart else ranked_statvars
     if 'relatedChart' in chart and 'denominator' in chart['relatedChart']:
       ranked_statvars.add(chart['relatedChart']['denominator'])
   app.config['RANKED_STAT_VARS'] = ranked_statvars
@@ -319,42 +391,24 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
       "config/home_page/topics.json")
   app.config['HOMEPAGE_PARTNERS'] = libutil.get_json(
       "config/home_page/partners.json")
+  app.config['HOMEPAGE_SAMPLE_QUESTIONS'] = libutil.get_json(
+      "config/home_page/sample_questions.json")
 
   if cfg.TEST or cfg.LITE:
     app.config['MAPS_API_KEY'] = ''
   else:
     # Get the API key from environment first.
-    if os.environ.get('MAPS_API_KEY'):
-      app.config['MAPS_API_KEY'] = os.environ.get('MAPS_API_KEY')
-    elif os.environ.get('maps_api_key'):
-      app.config['MAPS_API_KEY'] = os.environ.get('maps_api_key')
-    else:
-      secret_client = secretmanager.SecretManagerServiceClient()
-      secret_name = secret_client.secret_version_path(cfg.SECRET_PROJECT,
-                                                      'maps-api-key', 'latest')
-      secret_response = secret_client.access_secret_version(name=secret_name)
-      app.config['MAPS_API_KEY'] = secret_response.payload.data.decode('UTF-8')
-
-  if app.config['ENABLE_ADMIN']:
-    app.config['ADMIN_SECRET'] = os.environ.get('ADMIN_SECRET', '')
+    app.config['MAPS_API_KEY'] = _get_api_key(['MAPS_API_KEY', 'maps_api_key'],
+                                              cfg.SECRET_PROJECT,
+                                              'maps-api-key')
 
   if cfg.LOCAL:
     app.config['LOCAL'] = True
 
   # Need to fetch the API key for non gcp environment.
   if cfg.LOCAL or cfg.WEBDRIVER or cfg.INTEGRATION:
-    # Get the API key from environment first.
-    if os.environ.get('DC_API_KEY'):
-      app.config['DC_API_KEY'] = os.environ.get('DC_API_KEY')
-    elif os.environ.get('dc_api_key'):
-      app.config['DC_API_KEY'] = os.environ.get('dc_api_key')
-    else:
-      secret_client = secretmanager.SecretManagerServiceClient()
-      secret_name = secret_client.secret_version_path(cfg.SECRET_PROJECT,
-                                                      'mixer-api-key', 'latest')
-      secret_response = secret_client.access_secret_version(name=secret_name)
-      app.config['DC_API_KEY'] = secret_response.payload.data.decode(
-          'UTF-8').replace('\n', '')
+    app.config['DC_API_KEY'] = _get_api_key(['DC_API_KEY', 'dc_api_key'],
+                                            cfg.SECRET_PROJECT, 'mixer-api-key')
 
   # Initialize translations
   babel = Babel(app, default_domain='all')
@@ -372,18 +426,17 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
     else:
       app.config['NL_TABLE'] = None
 
-    # Get the API key from environment first.
     if cfg.USE_LLM:
       app.config['LLM_PROMPT_TEXT'] = llm_prompt.get_prompts()
-      if os.environ.get('LLM_API_KEY'):
-        app.config['LLM_API_KEY'] = os.environ.get('LLM_API_KEY')
-      else:
-        secret_client = secretmanager.SecretManagerServiceClient()
-        secret_name = secret_client.secret_version_path(cfg.SECRET_PROJECT,
-                                                        'palm-api-key',
-                                                        'latest')
-        secret_response = secret_client.access_secret_version(name=secret_name)
-        app.config['LLM_API_KEY'] = secret_response.payload.data.decode('UTF-8')
+      app.config['LLM_API_KEY'] = _get_api_key(['LLM_API_KEY'],
+                                               cfg.SECRET_PROJECT,
+                                               'palm-api-key')
+      if is_feature_enabled(ENABLE_NL_AGENT_DETECTOR, app):
+        os.environ['GEMINI_API_KEY'] = app.config['LLM_API_KEY']
+        app.config['NL_DETECTION_AGENT'] = create_detection_agent(
+            os.environ.get("AGENT_MODEL", "gemini-2.5-flash"),
+            os.environ.get("DC_MCP_URL"))
+
     app.config[
         'NL_BAD_WORDS'] = EMPTY_BANNED_WORDS if cfg.CUSTOM else load_bad_words(
         )
@@ -410,6 +463,10 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
   else:
     blocklist_svg = ["dc/g/Uncategorized", "oecd/g/OECD"]
   app.config['BLOCKLIST_SVG'] = blocklist_svg
+
+  # Set whether to filter stat vars with low geographic coverage in the
+  # map and scatter tools.
+  app.config['MIN_STAT_VAR_GEO_COVERAGE'] = cfg.MIN_STAT_VAR_GEO_COVERAGE
 
   if not cfg.TEST:
     urls = get_health_check_urls()
@@ -444,10 +501,20 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
       return
     values['hl'] = g.locale
 
-  # Provides locale parameter in all templates
+  # Provides locale and other common parameters in all templates
   @app.context_processor
-  def inject_locale():
-    return dict(locale=get_locale())
+  def inject_common_parameters():
+    common_variables = {
+        #TODO: replace HEADER_MENU with V2
+        'HEADER_MENU':
+            json.dumps(libutil.get_json("config/base/header.json")),
+        'FOOTER_MENU':
+            json.dumps(libutil.get_json("config/base/footer.json")),
+        'HEADER_MENU_V2':
+            json.dumps(libutil.get_json("config/base/header_v2.json")),
+    }
+    locale_variable = dict(locale=get_locale())
+    return {**common_variables, **locale_variable}
 
   @app.teardown_request
   def log_unhandled(e):
@@ -455,10 +522,25 @@ def create_app(nl_root=DEFAULT_NL_ROOT):
       app.logger.error('Error thrown for request: %s\nerror: %s', request.url,
                        e)
 
+  # Attempt to retrieve the Google Analytics Tag ID (GOOGLE_ANALYTICS_TAG_ID):
+  # 1. First, check the environment variables for 'GOOGLE_ANALYTICS_TAG_ID'.
+  # 2. If not found, fallback to the application configuration ('GOOGLE_ANALYTICS_TAG_ID' in app.config).
+  # 3. If still not found, fallback to the deprecated application configuration ('GA_ACCOUNT' in app.config).
+  config_deprecated_ga_account = app.config['GA_ACCOUNT']
+  if config_deprecated_ga_account:
+    logging.warn(
+        "Use of GA_ACCOUNT is deprecated. Use the GOOGLE_ANALYTICS_TAG_ID environment variable instead."
+    )
+  config_google_analytics_tag_id = app.config['GOOGLE_ANALYTICS_TAG_ID']
+  google_analytics_tag_id = os.environ.get(
+      'GOOGLE_ANALYTICS_TAG_ID', config_google_analytics_tag_id or
+      config_deprecated_ga_account)
+
   # Jinja env
-  app.jinja_env.globals['GA_ACCOUNT'] = app.config['GA_ACCOUNT']
+  app.jinja_env.globals['GOOGLE_ANALYTICS_TAG_ID'] = google_analytics_tag_id
   app.jinja_env.globals['NAME'] = app.config['NAME']
   app.jinja_env.globals['LOGO_PATH'] = app.config['LOGO_PATH']
+  app.jinja_env.globals['LOGO_WIDTH'] = app.config['LOGO_WIDTH']
   app.jinja_env.globals['OVERRIDE_CSS_PATH'] = app.config['OVERRIDE_CSS_PATH']
   app.secret_key = os.urandom(24)
 

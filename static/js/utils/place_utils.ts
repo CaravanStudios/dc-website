@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 import _ from "lodash";
 
 import {
@@ -116,11 +116,13 @@ export function getChildPlacesPromise(
  */
 export function getEnclosedPlacesPromise(
   placeDcid: string,
-  childPlaceType: string
+  childPlaceType: string,
+  signal?: AxiosRequestConfig["signal"]
 ): Promise<Array<NamedPlace>> {
   return axios
     .get(
-      `/api/place/descendent?dcids=${placeDcid}&descendentType=${childPlaceType}`
+      `/api/place/descendent?dcids=${placeDcid}&descendentType=${childPlaceType}`,
+      { signal }
     )
     .then((resp) => {
       const enclosedPlaces = resp.data[placeDcid];
@@ -168,6 +170,20 @@ export function getNamedTypedPlace(
 /**
  * Given a list of place dcids, returns a promise with a map of dcids to place
  * names
+ *
+ * By default fetches the "name" property. Use the "prop" option to fetch
+ * an alternate name property.
+ *
+ * If a locale is provided, it will return localized names from the
+ * nameWithLanguage property.
+ *
+ * @param dcids
+ * @param options - The options for the request
+ * @param options.apiRoot - The root URL of the API
+ * @param options.prop - The property to get the names for.
+ * @param options.signal - The signal to abort the request
+ * @param options.locale - The locale to get the names in
+ * @returns A promise with a map of dcids to place names
  */
 export function getPlaceNames(
   dcids: string[],
@@ -175,10 +191,17 @@ export function getPlaceNames(
     apiRoot?: string;
     prop?: string;
     signal?: AbortSignal;
+    locale?: string;
   }
 ): Promise<{ [key: string]: string }> {
   if (!dcids.length) {
     return Promise.resolve({});
+  }
+  if (options?.locale && options.locale !== "en") {
+    return getPlaceNamesI18n(dcids, {
+      ...options,
+      apiRoot: options?.apiRoot,
+    });
   }
   const requestOptions = options?.signal ? { signal: options.signal } : {};
   return axios
@@ -196,13 +219,47 @@ export function getPlaceNames(
 }
 
 /**
+ * Given a list of place dcids, returns a promise with a map of dcids to place
+ * names
+ */
+export function getPlaceNamesI18n(
+  dcids: string[],
+  options?: {
+    apiRoot?: string;
+    signal?: AbortSignal;
+    locale?: string;
+  }
+): Promise<{ [key: string]: string }> {
+  if (!dcids.length) {
+    return Promise.resolve({});
+  }
+  const requestOptions = options?.signal ? { signal: options.signal } : {};
+  const searchParams = new URLSearchParams();
+  for (const dcid of dcids) {
+    searchParams.append("dcid", dcid);
+  }
+  if (options?.locale) {
+    searchParams.set("hl", options.locale);
+  }
+  return axios
+    .get(
+      `${
+        options?.apiRoot || ""
+      }/api/place/name/i18n?${searchParams.toString()}`,
+      requestOptions
+    )
+    .then((resp) => {
+      return resp.data;
+    });
+}
+
+/**
  * Fetches the place type for the given DCID
  * names
  */
 export async function getPlaceType(
   dcid: string,
-  apiRoot?: string,
-  prop?: string
+  apiRoot?: string
 ): Promise<string> {
   if (!dcid) {
     return THING_PLACE_TYPE;
@@ -225,18 +282,19 @@ export function getPlaceDisplayNames(
   options?: {
     apiRoot?: string;
     signal?: AbortSignal;
+    locale?: string;
   }
 ): Promise<DisplayNameApiResponse> {
   if (!dcids.length) {
     return Promise.resolve({});
   }
   const requestOptions = options?.signal ? { signal: options.signal } : {};
+  let url = `${options?.apiRoot || ""}/api/place/displayname`;
+  if (options?.locale) {
+    url += `?hl=${options.locale}`;
+  }
   return axios
-    .post(
-      `${options?.apiRoot || ""}/api/place/displayname`,
-      { dcids },
-      requestOptions
-    )
+    .post(url, { dcids }, requestOptions)
     .then((resp) => {
       return resp.data;
     })

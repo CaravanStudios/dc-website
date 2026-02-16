@@ -21,17 +21,17 @@
 // URL hash param keys
 export const URL_HASH_PARAMS = {
   PLACE: "p",
+  STAT_VAR: "sv",
   TOPIC: "t",
   QUERY: "q",
   DC: "dc",
-  // Embeddings index name (listed in embeddings.yaml)
+  // Embeddings index name (listed in catalog.yaml)
   IDX: "idx",
   DISABLE_EXPLORE_MORE: "em",
   // old query param
   DEPRECATED_QUERY: "oq",
   // Detection params
   DETECTOR: "detector",
-  LLM_API: "llm_api",
   // auto play params
   AUTO_PLAY_QUERY: "aq",
   AUTO_PLAY_DISABLE_TYPING: "at",
@@ -43,6 +43,22 @@ export const URL_HASH_PARAMS = {
   DEFAULT_PLACE: "default_place",
   MODE: "mode",
   RERANKER: "reranker",
+  INCLUDE_STOP_WORDS: "includeStopWords",
+  MAX_TOPICS: "maxTopics",
+  MAX_TOPIC_SVS: "maxTopicSvs",
+  MAX_CHARTS: "maxCharts",
+  CHART_TYPE: "chartType",
+  ORIGIN: "origin",
+
+  // The following are used for Facet selection.
+  IMPORT_NAME: "imp",
+  MEASUREMENT_METHOD: "mm",
+  OBSERVATION_PERIOD: "obsPer",
+  SCALING_FACTOR: "scaling",
+  UNIT: "unit",
+
+  // The following are used for exact data selection
+  DATE: "date",
 };
 export const CLIENT_TYPES = {
   // User typed in a p=X&t=Y URL
@@ -57,8 +73,25 @@ export const CLIENT_TYPES = {
   RELATED_PLACE: "ui_related_place",
   // User clicked on a related topic
   RELATED_TOPIC: "ui_related_topic",
+  // User clicked on a generated question from a related topic
+  RELATED_QUESTION: "ui_related_question",
 };
 // Dcid of the default topic to use
 export const DEFAULT_TOPIC = "dc/topic/Root";
 // String used as a delimiter for url params
 export const URL_DELIM = "___";
+
+export const NL_SMALL_TILE_CLASS = "tile-sm";
+export const NL_MED_TILE_CLASS = "tile-md";
+export const NL_LARGE_TILE_CLASS = "tile-lg";
+// Number of tiles to show.
+export const NL_NUM_TILES_SHOWN = 3;
+export const NL_NUM_BLOCKS_SHOWN = 3;
+export const NL_SOURCE_REPLACEMENTS = {
+  "https://datacommons.org": "https://www.google.com",
+  "https://datacommons.org/": "https://www.google.com",
+  "https://www.datacommons.org": "https://www.google.com",
+  "https://www.datacommons.org/": "https://www.google.com",
+};
+
+export const SVG_CHART_HEIGHT = 200;

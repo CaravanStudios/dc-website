@@ -38,8 +38,6 @@ import {
 } from "./context";
 import { DEFAULT_DISPLAY_OPTIONS, getMapPointPlaceType } from "./util";
 
-const NUM_ENTITIES_EXISTENCE = 10;
-
 interface StatVarChooserProps {
   openSvHierarchyModalCallback: () => void;
   openSvHierarchyModal: boolean;
@@ -48,24 +46,37 @@ interface StatVarChooserProps {
 export function StatVarChooser(props: StatVarChooserProps): JSX.Element {
   const { dateCtx, statVar, placeInfo, display } = useContext(Context);
   const [samplePlaces, setSamplePlaces] = useState([]);
+  const [statVarWidgetIsCollapsed, setStatVarWidgetIsCollapsed] =
+    useState(true);
 
   useEffect(() => {
     const enclosingPlaceDcid = placeInfo.value.enclosingPlace.dcid;
     const enclosedPlaceType = placeInfo.value.enclosedPlaceType;
     if (_.isEmpty(enclosingPlaceDcid) || _.isEmpty(enclosedPlaceType)) {
       setSamplePlaces([]);
+      setStatVarWidgetIsCollapsed(true);
       return;
     }
-    getEnclosedPlacesPromise(enclosingPlaceDcid, enclosedPlaceType).then(
-      (enclosedPlaces) => {
+    setStatVarWidgetIsCollapsed(false);
+    getEnclosedPlacesPromise(enclosingPlaceDcid, enclosedPlaceType)
+      .then((enclosedPlaces) => {
         const samplePlaces = getSamplePlaces(
           enclosingPlaceDcid,
           enclosedPlaceType,
           enclosedPlaces
         );
         setSamplePlaces(samplePlaces);
-      }
-    );
+      })
+      .catch(() => {
+        setSamplePlaces([]);
+        alert(
+          `Can't find data for this place and breakdown. Please try a different selection.`
+        );
+        // Clear place and variables to avoid a loop of retries
+        placeInfo.setEnclosingPlace({ dcid: "", name: "" });
+        statVar.set({ dcid: "", info: null });
+        return;
+      });
   }, [placeInfo.value.enclosingPlace, placeInfo.value.enclosedPlaceType]);
 
   useEffect(() => {
@@ -92,7 +103,7 @@ export function StatVarChooser(props: StatVarChooserProps): JSX.Element {
     }
   }, [statVar.value]);
 
-  const deselectSVs = (svList: string[]) => {
+  const deselectSVs = (svList: string[]): void => {
     if (!_.isEmpty(svList)) {
       // map tool can only have one stat var selected at a time so if a stat var
       // is deselected, just set the selected stat var to empty.
@@ -111,13 +122,11 @@ export function StatVarChooser(props: StatVarChooserProps): JSX.Element {
       sampleEntities={samplePlaces}
       deselectSVs={deselectSVs}
       selectedSVs={selectedSVs}
-      selectSV={(svDcid) =>
+      selectSV={(svDcid): void =>
         selectStatVar(dateCtx, statVar, display, placeInfo, svDcid)
       }
-      numEntitiesExistence={Math.min(
-        NUM_ENTITIES_EXISTENCE,
-        samplePlaces.length
-      )}
+      isCollapsedOverride={statVarWidgetIsCollapsed}
+      setIsCollapsedOverride={setStatVarWidgetIsCollapsed}
     />
   );
 }

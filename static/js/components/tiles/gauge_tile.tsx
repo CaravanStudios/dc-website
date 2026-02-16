@@ -24,16 +24,18 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { drawGaugeChart } from "../../chart/draw_gauge";
 import { ASYNC_ELEMENT_HOLDER_CLASS } from "../../constants/css_constants";
 import { CSV_FIELD_DELIMITER } from "../../constants/tile_constants";
+import { useLazyLoad } from "../../shared/hooks";
 import { NamedTypedPlace, StatVarSpec } from "../../shared/types";
-import { getPoint, getSeries } from "../../utils/data_fetch_utils";
-import { datacommonsClient } from "../../utils/datacommons_client";
+import { getDataCommonsClient } from "../../utils/data_commons_client";
+import { getPoint } from "../../utils/data_fetch_utils";
 import {
+  clearContainer,
   getDenomInfo,
+  getDenomResp,
   getNoDataErrorMsg,
   getStatFormat,
   getStatVarNames,
   ReplacementStrings,
-  showError,
   transformCsvHeader,
 } from "../../utils/tile_utils";
 import { ChartTileContainer } from "./chart_tile";
@@ -65,6 +67,15 @@ export interface GaugeTilePropType {
   subtitle?: string;
   // Optional: Override sources for this tile
   sources?: string[];
+  // Optional: only load this component when it's near the viewport
+  lazyLoad?: boolean;
+  /**
+   * Optional: If lazy loading is enabled, load the component when it is within
+   * this margin of the viewport. Default: "0px"
+   */
+  lazyLoadMargin?: string;
+  // Optional: Passed into mixer calls to differentiate website and web components in usage logs
+  surface?: string;
 }
 
 export interface GaugeChartData {
@@ -84,16 +95,19 @@ export interface GaugeChartData {
 export function GaugeTile(props: GaugeTilePropType): JSX.Element {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [gaugeData, setGaugeData] = useState<GaugeChartData | undefined>(null);
-
+  const { shouldLoad, containerRef } = useLazyLoad(props.lazyLoadMargin);
   useEffect(() => {
+    if (props.lazyLoad && !shouldLoad) {
+      return;
+    }
     // fetch data
     if (!gaugeData || !_.isEqual(gaugeData.props, props)) {
-      (async () => {
+      (async (): Promise<void> => {
         const data = await fetchData(props);
         setGaugeData(data);
       })();
     }
-  }, [props, gaugeData]);
+  }, [props, gaugeData, shouldLoad]);
 
   const drawFn = useCallback(() => {
     // draw if data is available
@@ -116,44 +130,60 @@ export function GaugeTile(props: GaugeTilePropType): JSX.Element {
       id={props.id}
       title={props.title}
       subtitle={props.subtitle}
+      apiRoot={props.apiRoot}
       sources={props.sources || (gaugeData && gaugeData.sources)}
       replacementStrings={replacementStrings}
       allowEmbed={true}
       className={`bar-chart`}
       getDataCsv={getDataCsvCallback(props)}
-      hasErrorMsg={gaugeData && !!gaugeData.errorMsg}
+      errorMsg={gaugeData && gaugeData.errorMsg}
       footnote={props.footnote}
+      statVarSpecs={[props.statVarSpec]}
+      forwardRef={containerRef}
+      chartHeight={props.svgChartHeight}
+      surface={props.surface}
     >
       <div
         className={`svg-container ${ASYNC_ELEMENT_HOLDER_CLASS}`}
-        style={{ minHeight: props.svgChartHeight }}
+        style={{
+          minHeight: props.svgChartHeight,
+          display: gaugeData && gaugeData.errorMsg ? "none" : "block",
+        }}
         ref={chartContainerRef}
       ></div>
     </ChartTileContainer>
   );
 }
 
-const fetchData = async (props: GaugeTilePropType) => {
+const fetchData = async (props: GaugeTilePropType): Promise<GaugeChartData> => {
   try {
     const statResp = await getPoint(
       props.apiRoot,
       [props.place.dcid],
       [props.statVarSpec.statVar],
-      ""
+      "", // date
+      null, // alignedVariables
+      null, // highlightFacet
+      null, // facetIds
+      props.surface
     );
-    const denomResp = props.statVarSpec.denom
-      ? await getSeries(
+    const [denomsByFacet, defaultDenomData] = props.statVarSpec.denom
+      ? await getDenomResp(
+          [props.statVarSpec.denom],
+          statResp,
           props.apiRoot,
-          [props.place.dcid],
-          [props.statVarSpec.denom]
+          false,
+          props.surface,
+          [props.place.dcid]
         )
-      : null;
+      : [null, null];
+
     const statVarDcidToName = await getStatVarNames(
       [props.statVarSpec],
       props.apiRoot
     );
 
-    const { unit, scaling } = getStatFormat(props.statVarSpec, statResp);
+    const scaling = getStatFormat(props.statVarSpec, statResp).scaling;
     const sources = new Set<string>();
     const statData = statResp.data[props.statVarSpec.statVar][props.place.dcid];
     if (statResp.facets[statData.facet]) {
@@ -163,9 +193,11 @@ const fetchData = async (props: GaugeTilePropType) => {
     if (props.statVarSpec.denom) {
       const denomInfo = getDenomInfo(
         props.statVarSpec,
-        denomResp,
+        denomsByFacet,
         props.place.dcid,
-        statData.date
+        statData.date,
+        statData.facet,
+        defaultDenomData
       );
       if (denomInfo && value) {
         value /= denomInfo.value;
@@ -181,7 +213,7 @@ const fetchData = async (props: GaugeTilePropType) => {
       _.isNull(value) || _.isUndefined(value)
         ? getNoDataErrorMsg([props.statVarSpec])
         : "";
-    return {
+    const gaugeChartData: GaugeChartData = {
       value,
       date: statData.date,
       sources,
@@ -191,6 +223,7 @@ const fetchData = async (props: GaugeTilePropType) => {
       props,
       errorMsg,
     };
+    return gaugeChartData;
   } catch (error) {
     console.log(error);
     return null;
@@ -203,8 +236,9 @@ const fetchData = async (props: GaugeTilePropType) => {
  * @returns Async function for fetching chart CSV
  */
 function getDataCsvCallback(props: GaugeTilePropType): () => Promise<string> {
+  const dataCommonsClient = getDataCommonsClient(props.apiRoot, props.surface);
   return () => {
-    return datacommonsClient.getCsv({
+    return dataCommonsClient.getCsv({
       date: props.statVarSpec.date,
       entities: [props.place.dcid],
       fieldDelimiter: CSV_FIELD_DELIMITER,
@@ -223,7 +257,7 @@ function draw(
   svgContainer: HTMLDivElement
 ): void {
   if (chartData.errorMsg) {
-    showError(chartData.errorMsg, svgContainer);
+    clearContainer(svgContainer);
     return;
   }
   drawGaugeChart(

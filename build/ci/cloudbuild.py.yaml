@@ -14,11 +14,22 @@
 
 # Run Python tests, lint, etc.
 steps:
-  - id: flask_test
+  # Download the files needed for nl embeddings tests.
+  - id: download_nl_files
     name: python:3.11.3
     entrypoint: /bin/sh
     args:
       - -c
       - |
-        ./run_test.sh --setup_python
+        cd tools/nl/download_nl_files
+        ./run.sh
+
+  - id: flask_test
+    name: python:3.11.3
+    entrypoint: /bin/sh
+    waitFor: ["download_nl_files"]
+    args:
+      - -c
+      - |
+        pip install uv
         ./run_test.sh -p

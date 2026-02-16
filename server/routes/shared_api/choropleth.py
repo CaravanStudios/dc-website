@@ -33,7 +33,6 @@ from server.lib.shared import is_float
 import server.lib.shared as shared
 import server.lib.util as lib_util
 from server.routes import TIMEOUT
-import server.routes.place.api as landing_page_api
 from server.routes.shared_api.place import EQUIVALENT_PLACE_TYPES
 import server.routes.shared_api.place as place_api
 
@@ -83,6 +82,15 @@ MULTILINE_GEOJSON_TYPE = "MultiLineString"
 MULTIPOLYGON_GEOJSON_TYPE = "MultiPolygon"
 POLYGON_GEOJSON_TYPE = "Polygon"
 
+# Override the choropleth display level map for special cases where the detail
+# level returned by CHOROPLETH_GEOJSON_DP_LEVEL_MAP is too low for the specific
+# place (this can happen for small countries and overseas territories).
+# TODO: Remove this once we have a better way to handle special cases
+OVERRIDE_CHOROPLETH_DISPLAY_LEVEL_MAP = {
+    'geoId/72': 'geoJsonCoordinatesDP1',
+    'country/TLS': 'geoJsonCoordinatesDP1'
+}
+
 
 @cache.memoize(timeout=TIMEOUT)
 def get_choropleth_display_level(geoDcid):
@@ -103,7 +111,7 @@ def get_choropleth_display_level(geoDcid):
     display_level = SPECIAL_CHOROPLETH_DISPLAY_LEVEL_MAP[geoDcid]
     return geoDcid, display_level
 
-  place_type = place_api.get_place_type(geoDcid)
+  place_type = place_api.api_place_type(geoDcid)
   display_level = None
   if place_type in CHOROPLETH_DISPLAY_LEVEL_MAP:
     display_level = CHOROPLETH_DISPLAY_LEVEL_MAP[place_type]
@@ -259,10 +267,10 @@ def geojson():
   # dp level for the place type
   geojson_prop = geojson_prop + CHOROPLETH_GEOJSON_DP_LEVEL_MAP.get(
       place_type, "")
-  # geoId/72 needs higher resolution geojson because otherwise, the map looks
-  # too fragmented
-  if place_dcid == 'geoId/72':
-    geojson_prop = 'geoJsonCoordinatesDP1'
+
+  # Override geojson prop for special cases to avoid fetching over-simplified geojson
+  if place_dcid in OVERRIDE_CHOROPLETH_DISPLAY_LEVEL_MAP:
+    geojson_prop = OVERRIDE_CHOROPLETH_DISPLAY_LEVEL_MAP[place_dcid]
   names_by_geo = {}
   if place_name_prop:
     names_by_geo = shared.names(geos, place_name_prop)
@@ -293,6 +301,9 @@ def geojson():
 
 
 @bp.route('/node-geojson', methods=['POST'])
+@cache.cached(timeout=TIMEOUT,
+              query_string=True,
+              make_cache_key=lib_util.post_body_cache_key)
 def node_geojson():
   """Gets geoJson data for a list of nodes and a specified property to use to
      get the geoJson data"""
@@ -417,7 +428,7 @@ def choropleth_data(dcid):
   # we should only be making choropleths for the first stat var
   sv = cc['statsVars'][0]
   cc_sv_data_values = numerator_resp.get('data', {}).get(sv, {})
-  denom = landing_page_api.get_denom(cc, True)
+  denom = get_denom(cc, True)
   cc_denom_data = denominator_resp.get('data', {}).get(denom, {})
   scaling = cc.get('scaling', 1)
   if 'relatedChart' in cc:
@@ -540,3 +551,20 @@ def get_geotiff():
                 as_attachment=True,
                 cache_timeout=0))
   return response
+
+
+def get_denom(cc, related_chart=False):
+  """Get the numerator and denominator map."""
+  # If chart requires denominator, use it for both primary and related charts.
+  if 'denominator' in cc:
+    result = {}
+    if len(cc['denominator']) != len(cc['statsVars']):
+      raise ValueError('Denominator number not matching: %s', cc)
+    for num, denom in zip(cc['statsVars'], cc['denominator']):
+      result[num] = denom
+    return result
+  # For related chart, use the denominator that is specified in the
+  # 'relatedChart' field if present.
+  if related_chart and cc.get('relatedChart', {}).get('scale', False):
+    return cc['relatedChart'].get('denominator', 'Count_Person')
+  return None

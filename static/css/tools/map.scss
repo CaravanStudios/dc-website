@@ -21,7 +21,6 @@
 @import "../place_selector";
 @import "../source_selector";
 @import "../tool_chart_footer";
-@import "../bq_modal";
 
 // TODO(chejennifer): factor out some common styling
 
@@ -192,7 +191,6 @@
   stroke: black;
 }
 
-
 /* Time Slider Styles */
 
 .time-slider-container {
@@ -293,15 +291,12 @@
 .chart-section-card.card {
   margin-bottom: 0;
   border-bottom: none;
-  border-radius: 0.25rem 0.25rem 0 0;
+  border-radius: 0;
+  padding-top: 30px;
 }
 
 #map-chart {
   padding: 0;
-}
-
-#chart-container .leaflet-container {
-  background: white;
 }
 
 #placeholder-container .footer {

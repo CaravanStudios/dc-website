@@ -8,31 +8,53 @@
   "query_with_places_removed": "compare male population with female population",
   "sv_matching": {
     "CosineScore": [
-      0.9213767647743225,
-      0.8895533084869385,
-      0.839394211769104,
-      0.8070410490036011,
-      0.8066003322601318,
-      0.8025591373443604,
-      0.7949633598327637,
-      0.7862058877944946,
-      0.7849380970001221,
-      0.7820716500282288,
-      0.7810717821121216,
-      0.7803113460540771,
-      0.7780779600143433,
-      0.7691032290458679,
-      0.7682781219482422
+      0.91876,
+      0.85905,
+      0.83541,
+      0.78231,
+      0.77732,
+      0.77629,
+      0.76633,
+      0.76611,
+      0.76142,
+      0.7606,
+      0.75958,
+      0.75737,
+      0.7573,
+      0.7573,
+      0.7553,
+      0.75335,
+      0.75329,
+      0.75096,
+      0.74826,
+      0.74515,
+      0.74439,
+      0.74316,
+      0.74267,
+      0.73966,
+      0.73715,
+      0.7366,
+      0.73472,
+      0.73365,
+      0.73261,
+      0.73252,
+      0.7303,
+      0.72993,
+      0.72891,
+      0.7289,
+      0.72807,
+      0.72596,
+      0.72593
     ],
     "MultiSV": {
       "Candidates": [
         {
-          "AggCosineScore": 1.0,
+          "AggCosineScore": 0.9277,
           "DelimBased": false,
           "Parts": [
             {
               "CosineScore": [
-                1.000000238418579
+                0.92579
               ],
               "QueryPart": "male population",
               "SV": [
@@ -41,59 +63,71 @@
             },
             {
               "CosineScore": [
-                0.9999998807907104
+                0.9297,
+                0.88474
               ],
               "QueryPart": "female population",
               "SV": [
-                "Count_Person_Female"
+                "Count_Person_Female",
+                "dc/topic/Gender"
               ]
             }
           ]
         },
         {
-          "AggCosineScore": 0.9194,
+          "AggCosineScore": 0.905,
           "DelimBased": false,
           "Parts": [
             {
               "CosineScore": [
-                0.8629986643791199
-              ],
-              "QueryPart": "male",
-              "SV": [
-                "Count_Person_Male"
-              ]
-            },
-            {
-              "CosineScore": [
-                0.9757853746414185
-              ],
-              "QueryPart": "population female population",
-              "SV": [
-                "Count_Person_Female"
-              ]
-            }
-          ]
-        },
-        {
-          "AggCosineScore": 0.9165,
-          "DelimBased": false,
-          "Parts": [
-            {
-              "CosineScore": [
-                0.9318187832832336
+                0.91178
               ],
               "QueryPart": "male population female",
               "SV": [
-                "Count_Person_Male"
+                "dc/topic/Gender"
               ]
             },
             {
               "CosineScore": [
-                0.9012579917907715
+                0.89824,
+                0.87235
               ],
               "QueryPart": "population",
               "SV": [
-                "Count_Person"
+                "Count_Person",
+                "IncrementalCount_Person"
+              ]
+            }
+          ]
+        },
+        {
+          "AggCosineScore": 0.863,
+          "DelimBased": false,
+          "Parts": [
+            {
+              "CosineScore": [
+                0.80889,
+                0.80342,
+                0.80177,
+                0.77516
+              ],
+              "QueryPart": "male",
+              "SV": [
+                "Count_Death_Male_AsAFractionOf_Count_Person_Male",
+                "LifeExpectancy_Person_Male",
+                "Count_Person_Male",
+                "Count_Death_Male"
+              ]
+            },
+            {
+              "CosineScore": [
+                0.91703,
+                0.87302
+              ],
+              "QueryPart": "population female population",
+              "SV": [
+                "Count_Person_Female",
+                "dc/topic/Gender"
               ]
             }
           ]
@@ -102,21 +136,43 @@
     },
     "Query": "compare male population with female population",
     "SV": [
-      "Count_Person_Male",
-      "Count_Person_Female",
-      "Count_Person_Urban_Male",
       "dc/topic/Gender",
-      "dc/topic/SeparatedMalePopulationByAge",
-      "Count_Person_Male_ResidesInGroupQuarters",
-      "Count_Person_Male_ForeignBorn_PlaceOfBirthNorthamerica",
-      "Median_Age_Person_Male",
-      "Count_Person_WithOwnChildrenUnder18_Male",
-      "Count_Person_Male_SomeOtherRaceAlone",
-      "dc/topic/SomeOtherRaceAloneMalePopulationByAge",
-      "Count_Person_Rural_Male",
+      "Count_Person_Female",
+      "Count_Person_Male",
+      "Count_Person_Female_MarriedAndNotSeparated",
       "Count_Person_Urban_Female",
+      "dc/70zj83ev915f8",
+      "GenderIncomeInequality_Person_15OrMoreYears_WithIncome",
+      "Count_Death_Female",
+      "Count_Person_Rural_Female",
+      "Count_Person_Urban_Male",
+      "Count_Death_Male",
+      "Count_Person_Workers_Female",
+      "Count_Student_Female",
+      "Count_Person_Female_TwoOrMoreRaces",
+      "Count_Person_3OrMoreYears_Female_EnrolledInSchool",
+      "Count_Person_Literate_Female",
+      "dc/topic/MortalityByGender",
+      "dc/topic/NowMarriedFemalePopulationByAge",
+      "dc/topic/NowMarriedMalePopulationByAge",
+      "Count_Person_Rural_Male",
+      "dc/topic/Demographics",
+      "dc/topic/sdg_5.a.1",
+      "dc/topic/MarriedPopulationByDemographic",
+      "dc/topic/DisabilitiesByGender",
+      "dc/topic/UrbanFemalePopulationByAge",
+      "Count_Student_Male",
       "dc/topic/SeparatedFemalePopulationByAge",
-      "Median_Age_Person_Female"
+      "dc/topic/AsianAloneFemalePopulationByAge",
+      "Count_Person_Female_WithHealthInsurance",
+      "Count_Person_Workers_Male",
+      "Count_Person_Male_MarriedAndNotSeparated",
+      "dc/topic/WhiteAloneFemalePopulationByAge",
+      "Count_Person_25OrMoreYears_EducationalAttainmentBachelorsDegree_Female",
+      "Count_Person_3OrMoreYears_Male_EnrolledInSchool",
+      "dc/topic/MedianHouseholdIncomeByGender",
+      "dc/topic/FemaleMortality",
+      "dc/topic/NeverMarriedFemalePopulationByAge"
     ]
   },
   "props_matching": {
@@ -133,7 +189,9 @@
     "query_transformations": {
       "place_detection_input": "Compare Male population with Female Population",
       "place_detection_with_places_removed": "compare male population with female population",
-      "sv_detection_query_index_type": "",
+      "sv_detection_query_index_types": [
+        "base_uae_mem"
+      ],
       "sv_detection_query_input": "compare male population with female population",
       "sv_detection_query_stop_words_removal": "male population female population"
     }

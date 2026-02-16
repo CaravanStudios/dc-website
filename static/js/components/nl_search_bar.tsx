@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,20 +18,47 @@
  * Component for the search bar used for all NL queries.
  */
 
-import React, { useEffect, useState } from "react";
-import { Input, InputGroup } from "reactstrap";
+import React, { ReactElement, useEffect, useState } from "react";
+
+import NlSearchBarHeaderInline from "./nl_search_bar/nl_search_bar_header_inline";
+import { NlSearchBarStandard } from "./nl_search_bar/nl_search_bar_standard";
 
 interface NlSearchBarPropType {
+  variant?: "standard" | "header-inline";
   allowEmptySearch?: boolean;
   inputId: string;
-  onSearch: (q: string) => void;
+  onSearch: (q: string, dynamicPlaceholdersEnabled: boolean) => void;
   initialValue: string;
-  placeholder: string;
+  placeholder?: string;
   shouldAutoFocus?: boolean;
   feedbackLink?: string;
+  enableDynamicPlaceholders?: boolean;
+  enableStatVarAutocomplete?: boolean;
 }
 
-export function NlSearchBar(props: NlSearchBarPropType): JSX.Element {
+// an interface for the implementation of variants of the natural language search, passing shared common components
+export interface NlSearchBarImplementationProps {
+  //the value currently in state representing the entered search term
+  value: string;
+  //a boolean flag for invalid search entries
+  invalid: boolean;
+  //the id of the input
+  inputId: string;
+  //the change event (used to trigger appropriate state changes in this parent)
+  onChange: (newValue: string) => void;
+  //a function to be called once a search is run
+  onSearch: (dynamicPlaceholdersEnabled: boolean) => void;
+  //the autofocus attribute of the input will be set to shouldAutoFocus
+  shouldAutoFocus?: boolean;
+  //an optional feedback link
+  feedbackLink?: string;
+  // Whether to enable dynamic placeholders.
+  enableDynamicPlaceholders?: boolean;
+  // Whether to enable stat var autocomplete.
+  enableStatVarAutocomplete?: boolean;
+}
+
+export function NlSearchBar(props: NlSearchBarPropType): ReactElement {
   const [invalid, setInvalid] = useState(false);
   const [value, setValue] = useState<string>("");
   useEffect(() => {
@@ -39,51 +66,35 @@ export function NlSearchBar(props: NlSearchBarPropType): JSX.Element {
     setInvalid(false);
   }, [props.initialValue]);
 
-  return (
-    <div className="search-section">
-      <div className="search-bar-tags">
-        <div className="early-preview-tag">Early preview</div>
-        {props.feedbackLink && (
-          <>
-            <span>|</span>
-            <div className="feedback-link">
-              <a href={props.feedbackLink} target="_blank" rel="noreferrer">
-                Feedback
-              </a>
-            </div>
-          </>
-        )}
-      </div>
-      <div className="search-box-section">
-        <div className={`search-bar${value ? " non-empty" : ""}`}>
-          <InputGroup className="search-bar-content">
-            <Input
-              id={props.inputId}
-              invalid={invalid}
-              placeholder={props.placeholder}
-              value={value}
-              onChange={(e) => {
-                setValue(e.target.value);
-                setInvalid(false);
-              }}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="pac-target-input search-input-text"
-              autoFocus={props.shouldAutoFocus}
-              autoComplete="off"
-            ></Input>
-            <div onClick={handleSearch} id="rich-search-button"></div>
-          </InputGroup>
-        </div>
-      </div>
-    </div>
-  );
-
-  function handleSearch(): void {
+  function handleSearch(dynamicPlaceholdersEnabled: boolean): void {
     if (!props.allowEmptySearch && !value) {
       setInvalid(true);
       return;
     }
 
-    props.onSearch(value);
+    props.onSearch(value, dynamicPlaceholdersEnabled);
   }
+
+  const commonProps: NlSearchBarImplementationProps = {
+    value,
+    invalid,
+    inputId: props.inputId,
+    onChange: (newValue: string) => {
+      setValue(newValue);
+      setInvalid(false);
+    },
+    onSearch: handleSearch,
+    shouldAutoFocus: props.shouldAutoFocus,
+    feedbackLink: props.feedbackLink,
+    enableDynamicPlaceholders: props.enableDynamicPlaceholders,
+    enableStatVarAutocomplete: props.enableStatVarAutocomplete,
+  };
+
+  const variant = props.variant || "standard";
+
+  return variant === "header-inline" ? (
+    <NlSearchBarHeaderInline {...commonProps} />
+  ) : (
+    <NlSearchBarStandard {...commonProps} />
+  );
 }

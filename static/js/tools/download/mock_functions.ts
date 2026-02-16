@@ -16,10 +16,13 @@
 
 /* mocked axios calls for Page test for download tool. */
 
+/* eslint-disable camelcase */
+
 jest.mock("axios");
 import axios from "axios";
 import { when } from "jest-when";
 
+import { WEBSITE_SURFACE_HEADER } from "../../shared/constants";
 import { stringifyFn } from "../../utils/axios";
 
 export function axiosMock(): void {
@@ -114,7 +117,7 @@ export function axiosMock(): void {
     .calledWith("/api/variable-group/info", {
       dcid: "dc/g/Root",
       entities: [],
-      numEntitiesExistence: undefined,
+      numEntitiesExistence: 0,
     })
     .mockResolvedValue(rootGroupsData);
 
@@ -123,7 +126,7 @@ export function axiosMock(): void {
     .calledWith("/api/variable-group/info", {
       dcid: "dc/g/Root",
       entities: ["geoId/06001", "geoId/06002"],
-      numEntitiesExistence: undefined,
+      numEntitiesExistence: 1,
     })
     .mockResolvedValue(rootGroupsData);
 
@@ -131,7 +134,7 @@ export function axiosMock(): void {
     .calledWith("/api/variable-group/info", {
       dcid: "dc/g/Root",
       entities: ["geoId/06002", "geoId/06001"],
-      numEntitiesExistence: undefined,
+      numEntitiesExistence: 1,
     })
     .mockResolvedValue(rootGroupsData);
 
@@ -140,7 +143,7 @@ export function axiosMock(): void {
     .calledWith("/api/variable-group/info", {
       dcid: "dc/g/Demographics",
       entities: ["geoId/06001", "geoId/06002"],
-      numEntitiesExistence: undefined,
+      numEntitiesExistence: 1,
     })
     .mockResolvedValue(demographicsGroupsData);
 
@@ -148,7 +151,7 @@ export function axiosMock(): void {
     .calledWith("/api/variable-group/info", {
       dcid: "dc/g/Demographics",
       entities: ["geoId/06002", "geoId/06001"],
-      numEntitiesExistence: undefined,
+      numEntitiesExistence: 1,
     })
     .mockResolvedValue(demographicsGroupsData);
 
@@ -197,7 +200,10 @@ export function axiosMock(): void {
 
   // get places in for counties in geoId/06
   when(axios.get)
-    .calledWith("/api/place/descendent?dcids=geoId/06&descendentType=County")
+    .calledWith(
+      "/api/place/descendent?dcids=geoId/06&descendentType=County",
+      expect.anything()
+    )
     .mockResolvedValue({
       data: {
         "geoId/06": ["geoId/06001", "geoId/06002"],
@@ -221,6 +227,7 @@ export function axiosMock(): void {
         variables: ["Count_Person"],
       },
       paramsSerializer: stringifyFn,
+      headers: WEBSITE_SURFACE_HEADER,
     })
     .mockResolvedValue({
       data: {
@@ -250,6 +257,7 @@ export function axiosMock(): void {
         variables: ["Count_Person"],
       },
       paramsSerializer: stringifyFn,
+      headers: WEBSITE_SURFACE_HEADER,
     })
     .mockResolvedValue({
       data: {
@@ -280,6 +288,7 @@ export function axiosMock(): void {
         variables: ["Count_Person", "Median_Age_Person"],
       },
       paramsSerializer: stringifyFn,
+      headers: WEBSITE_SURFACE_HEADER,
     })
     .mockResolvedValue({
       data: {
@@ -309,10 +318,16 @@ export function axiosMock(): void {
 
   // get place stats vars for places in geoId/06
   when(axios.post)
-    .calledWith("/api/observation/existence", {
-      entities: ["geoId/06001", "geoId/06002"],
-      variables: ["Count_Person"],
-    })
+    .calledWith(
+      "/api/observation/existence",
+      {
+        entities: ["geoId/06001", "geoId/06002"],
+        variables: ["Count_Person"],
+      },
+      {
+        headers: WEBSITE_SURFACE_HEADER,
+      }
+    )
     .mockResolvedValue({
       data: {
         Count_Person: {
@@ -323,10 +338,16 @@ export function axiosMock(): void {
     });
 
   when(axios.post)
-    .calledWith("/api/observation/existence", {
-      entities: ["geoId/06002", "geoId/06001"],
-      variables: ["Count_Person"],
-    })
+    .calledWith(
+      "/api/observation/existence",
+      {
+        entities: ["geoId/06002", "geoId/06001"],
+        variables: ["Count_Person"],
+      },
+      {
+        headers: WEBSITE_SURFACE_HEADER,
+      }
+    )
     .mockResolvedValue({
       data: {
         Count_Person: {
@@ -338,55 +359,79 @@ export function axiosMock(): void {
 
   // get csv
   when(axios.post)
-    .calledWith("/api/csv/within", {
-      childType: "County",
-      facetMap: { Count_Person: "" },
-      maxDate: "latest",
-      minDate: "latest",
-      parentPlace: "geoId/06",
-      rowLimit: 7,
-      statVars: ["Count_Person"],
-    })
+    .calledWith(
+      "/api/csv/within",
+      {
+        childType: "County",
+        facetMap: { Count_Person: "" },
+        maxDate: "latest",
+        minDate: "latest",
+        parentPlace: "geoId/06",
+        rowLimit: 7,
+        statVars: ["Count_Person"],
+      },
+      {
+        headers: WEBSITE_SURFACE_HEADER,
+      }
+    )
     .mockResolvedValue({
       data: csvData,
     });
 
   when(axios.post)
-    .calledWith("/api/csv/within", {
-      childType: "County",
-      facetMap: { Count_Person: "" },
-      maxDate: "latest",
-      minDate: "latest",
-      parentPlace: "geoId/06",
-      statVars: ["Count_Person"],
-    })
+    .calledWith(
+      "/api/csv/within",
+      {
+        childType: "County",
+        facetMap: { Count_Person: "" },
+        maxDate: "latest",
+        minDate: "latest",
+        parentPlace: "geoId/06",
+        statVars: ["Count_Person"],
+      },
+      {
+        headers: WEBSITE_SURFACE_HEADER,
+      }
+    )
     .mockResolvedValue({
       data: csvData,
     });
 
   when(axios.post)
-    .calledWith("/api/csv/within", {
-      childType: "County",
-      facetMap: { Count_Person: "" },
-      maxDate: "",
-      minDate: "2020",
-      parentPlace: "geoId/06",
-      rowLimit: 7,
-      statVars: ["Count_Person"],
-    })
+    .calledWith(
+      "/api/csv/within",
+      {
+        childType: "County",
+        facetMap: { Count_Person: "" },
+        maxDate: "",
+        minDate: "2020",
+        parentPlace: "geoId/06",
+        rowLimit: 7,
+        statVars: ["Count_Person"],
+      },
+      {
+        headers: WEBSITE_SURFACE_HEADER,
+      }
+    )
     .mockResolvedValue({
       data: csvData,
     });
 
   when(axios.post)
-    .calledWith("/api/csv/within", {
-      childType: "County",
-      facetMap: { Count_Person: "" },
-      maxDate: "",
-      minDate: "2020",
-      parentPlace: "geoId/06",
-      statVars: ["Count_Person"],
-    })
+    .calledWith(
+      "/api/csv/within",
+      {
+        childType: "County",
+        facetMap: { Count_Person: "" },
+        maxDate: "",
+        minDate: "2020",
+        parentPlace: "geoId/06",
+        statVars: ["Count_Person"],
+      },
+      {
+        headers: WEBSITE_SURFACE_HEADER,
+      }
+    )
     .mockResolvedValue({
       data: csvData,
     });

@@ -18,28 +18,35 @@
  * Main component for Visualization Tool.
  */
 
+import { ThemeProvider } from "@emotion/react";
 import _ from "lodash";
 import React, { useContext, useEffect, useState } from "react";
+import { RawIntlProvider } from "react-intl";
 
 import { Spinner } from "../../components/spinner";
+import { intl } from "../../i18n/i18n";
 import { RankingUnitUrlFuncContext } from "../../shared/context";
+import theme from "../../theme/theme";
 import { isSelectionComplete } from "../../utils/app/visualization_utils";
 import { AppContext, AppContextProvider } from "./app_context";
 import { Chart } from "./chart";
 import { Info } from "./info";
 import { SelectedOptions } from "./selected_options";
 import { SelectorPane } from "./selector_pane";
-import { VIS_TYPE_CONFIG } from "./vis_type_configs";
 import { VisTypeSelector } from "./vis_type_selector";
 
 export function App(): JSX.Element {
   return (
-    <AppContextProvider>
-      <div className="visualization-app">
-        <VisTypeSelector />
-        <MainPane />
-      </div>
-    </AppContextProvider>
+    <ThemeProvider theme={theme}>
+      <RawIntlProvider value={intl}>
+        <AppContextProvider>
+          <div className="visualization-app">
+            <VisTypeSelector />
+            <MainPane />
+          </div>
+        </AppContextProvider>
+      </RawIntlProvider>
+    </ThemeProvider>
   );
 }
 
@@ -72,12 +79,12 @@ function MainPane(): JSX.Element {
 
   return (
     <>
-      {showInfo && <Info onStartClicked={() => setShowInfo(false)} />}
+      {showInfo && <Info onStartClicked={(): void => setShowInfo(false)} />}
       {!showInfo && (
         <>
           <SelectedOptions />
           {isSelectionComplete(visType, places, enclosedPlaceType, statVars) ? (
-            <RankingUnitUrlFuncContext.Provider value={() => null}>
+            <RankingUnitUrlFuncContext.Provider value={(): null => null}>
               <Chart />
             </RankingUnitUrlFuncContext.Provider>
           ) : (

@@ -24,7 +24,7 @@ import _ from "lodash";
 import { ASYNC_ELEMENT_CLASS } from "../constants/css_constants";
 import { formatNumber } from "../i18n/i18n";
 import { Boundary } from "../shared/types";
-import { DataGroup, getColorFn } from "./base";
+import { DataGroup, DataPoint, getColorFn } from "./base";
 import {
   AXIS_TEXT_FILL,
   HIGHLIGHT_TIMEOUT,
@@ -193,7 +193,7 @@ function addHighlightOnHover(
   let hideFn: ReturnType<typeof setTimeout> = null;
 
   // define tooltip mouse behavior
-  const mouseoverFn = function () {
+  const mouseoverFn = function (): void {
     if (hideFn) {
       clearTimeout(hideFn);
     }
@@ -204,7 +204,7 @@ function addHighlightOnHover(
     svg.selectAll("rect, circle").style("opacity", 0.5);
     d3.select(this).style("opacity", 1);
   };
-  const mouseoutFn = function () {
+  const mouseoutFn = function (): void {
     // Slightly delay hiding tooltip and resetting styling so quickly mousing
     // over a stream of bars doesn't result in the tooltip flickering in and out
     hideFn = setTimeout(() => {
@@ -212,7 +212,7 @@ function addHighlightOnHover(
       tooltip.style("display", "none");
     }, HIGHLIGHT_TIMEOUT);
   };
-  const mousemoveFn = function () {
+  const mousemoveFn = function (): void {
     const [mouseX, mouseY] = d3.mouse(container.node() as HTMLElement);
     positionTooltip(tooltip, mouseX, mouseY, chartAreaBoundary);
   };
@@ -317,7 +317,7 @@ export function drawStackBarChart(
     chartHeight,
     x,
     false,
-    labelToLink,
+    options?.disableEntityLink ? null : labelToLink,
     null,
     options?.apiRoot
   );
@@ -331,7 +331,7 @@ export function drawStackBarChart(
   const colorOrder = options?.statVarColorOrder || keys;
   const colorFn = getColorFn(colorOrder, options?.colors);
 
-  const setData = (d: d3.Series<{ [key: string]: number }, string>) => {
+  const setData = (d: d3.Series<{ [key: string]: number }, string>): any[] => {
     return d
       .filter((item) => item.length >= 2 && !isNaN(item[0]) && !isNaN(item[1]))
       .map((item) => ({
@@ -548,7 +548,18 @@ function drawHorizontalGroupedBars(
   unit?: string
 ): void {
   const numGroups = dataGroups[0].value.length;
-  const setData = (dg: DataGroup) => {
+  const setData = (
+    dg: DataGroup
+  ): {
+    dataGroupValue: DataPoint;
+    label: string;
+    statVar: string;
+    value: number;
+    place: string;
+    date: string;
+    index: number;
+    unit: string;
+  }[] => {
     return dg.value.map((dgv, index) => ({
       dataGroupValue: dgv,
       label: dg.label,
@@ -698,7 +709,7 @@ function drawHorizontalStackedBars(
   useLollipop?: boolean,
   unit?: string
 ): void {
-  const setData = (d: d3.Series<{ [key: string]: number }, string>) => {
+  const setData = (d: d3.Series<{ [key: string]: number }, string>): any[] => {
     return d
       .filter((dp) => dp.length >= 2 && !isNaN(dp[0]) && !isNaN(dp[1]))
       .map((dp) => ({
@@ -829,7 +840,16 @@ function drawLollipops(
   legendKeyFn: (l: string) => string,
   unit?: string
 ): void {
-  const setData = (dg: DataGroup) => {
+  const setData = (
+    dg: DataGroup
+  ): {
+    statVar: string;
+    value: number;
+    dcid: string;
+    place: string;
+    date: string;
+    unit: string;
+  }[] => {
     return dg.value.map((dp) => ({
       statVar: dp.label,
       value: dp.value,
@@ -981,7 +1001,7 @@ export function drawGroupBarChart(
     chartHeight,
     x0,
     false,
-    labelToLink,
+    options?.disableEntityLink ? null : labelToLink,
     null,
     options?.apiRoot
   );

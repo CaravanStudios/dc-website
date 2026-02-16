@@ -13,14 +13,18 @@
 # limitations under the License.
 """Library that exposes search_vars"""
 
+import time
 from typing import Dict, List
 
+from nl_server import ranking
+from nl_server import rerank
 from nl_server.embeddings import Embeddings
 from nl_server.embeddings import EmbeddingsResult
 from nl_server.merge import merge_search_results
 import shared.lib.detected_variables as dvars
 
-_TOPIC_PREFIX = 'dc/topic/'
+# Topic DCIDs contain this string.
+_TOPIC_DCID_SUBSTRING = '/topic/'
 
 # Number of matches to find within the SV index.
 _NUM_SV_INDEX_MATCHES = 40
@@ -36,7 +40,9 @@ _NUM_SV_INDEX_MATCHES_WITHOUT_TOPICS = 60
 #
 def search_vars(embeddings_list: List[Embeddings],
                 queries: List[str],
-                skip_topics: bool = False) -> Dict[str, dvars.VarCandidates]:
+                skip_topics: bool = False,
+                rerank_model: ranking.RerankingModel = None,
+                debug_logs: dict = {}) -> Dict[str, dvars.VarCandidates]:
   if not embeddings_list:
     return {}
 
@@ -55,6 +61,11 @@ def search_vars(embeddings_list: List[Embeddings],
   for query, candidates in query2candidates.items():
     results[query] = _rank_vars(candidates, skip_topics)
 
+  if rerank_model:
+    start = time.time()
+    results = rerank.rerank(rerank_model, results, debug_logs)
+    debug_logs['time_var_reranking'] = time.time() - start
+
   return results
 
 
@@ -66,7 +77,7 @@ def _rank_vars(candidates: EmbeddingsResult,
   sv2sentences = {}
   for c in candidates:
     for dcid in c.vars:
-      if skip_topics and dcid.startswith(_TOPIC_PREFIX):
+      if skip_topics and _TOPIC_DCID_SUBSTRING in dcid:
         continue
       # Prefer the top score (`candidates` is ordered!)
       if dcid not in sv2score:
@@ -78,8 +89,12 @@ def _rank_vars(candidates: EmbeddingsResult,
             dvars.SentenceScore(sentence=c.sentence, score=c.score))
         sv2sentences[dcid].add(c.sentence)
 
-  for sv, score in sorted(sv2score.items(),
-                          key=lambda item: (-item[1], item[0])):
+  # TODO: truncate the score based on model parameters from yaml
+  # Same model would produce different scores after certain decimals, so we want
+  # to round to 6 decimal places to make the score and rank stable.
+  sorted_score = sorted(sv2score.items(),
+                        key=lambda item: (-round(item[1], 6), item[0]))
+  for sv, score in sorted_score:
     result.svs.append(sv)
     result.scores.append(score)
 

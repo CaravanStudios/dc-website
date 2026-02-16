@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from server.routes.shared_api.autocomplete.types import ScoredPrediction
 
 SERIES_WITHIN_ALL_FACETS = {
     'facets': {
@@ -414,4 +415,357 @@ POINT_WITHIN_2015_ALL_FACETS = {
             }
         }
     }
+}
+
+RESOLVE_IDS_VALUES = {
+    'ChIJPV4oX_65j4ARVW8IJ6IJUYs': [{
+        'dcid': 'geoId/4210768'
+    }],
+    'ChIJPV4oX_65j4ARVW8IJ6IJUYs1': [{
+        'dcid': 'geoId/4210769'
+    }],
+    'ChIJPV4oX_65j4ARVW8IJ6IJUYs2': [{
+        'dcid': 'geoId/4210770'
+    }],
+    'ChIJPV4oX_65j4ARVW8IJ6IJUYs3': [{
+        'dcid': 'geoId/4210771'
+    }],
+    'ChIJPV4oX_65j4ARVW8IJ6IJUYs4': [{
+        'dcid': 'geoId/4210772'
+    }]
+}
+
+MAPS_PREDICTIONS_VALUES = [
+    ScoredPrediction(description='California, USA',
+                     place_id='ChIJPV4oX_65j4ARVW8IJ6IJUYs',
+                     place_dcid=None,
+                     matched_query='calif',
+                     score=-1),
+    ScoredPrediction(description='Califon, NJ, USA',
+                     place_id='ChIJPV4oX_65j4ARVW8IJ6IJUYs1',
+                     place_dcid=None,
+                     matched_query='calif',
+                     score=0),
+    ScoredPrediction(description='California, MD, USA',
+                     place_id='ChIJPV4oX_65j4ARVW8IJ6IJUYs2',
+                     place_dcid=None,
+                     matched_query='calif',
+                     score=1),
+    ScoredPrediction(description='California City, CA, USA',
+                     place_id='ChIJPV4oX_65j4ARVW8IJ6IJUYs3',
+                     place_dcid=None,
+                     matched_query='calif',
+                     score=2),
+    ScoredPrediction(description='California, PA, USA',
+                     place_id='ChIJPV4oX_65j4ARVW8IJ6IJUYs4',
+                     place_dcid=None,
+                     matched_query='calif',
+                     score=3),
+]
+# Place page chart config for place page testing
+SAMPLE_PLACE_PAGE_CHART_CONFIG = [{
+    "category":
+        "Crime",
+    "title_id":
+        "CHART_TITLE-Total_crime",
+    "title":
+        "Total crime",
+    "description":
+        "Total number of criminal incidents",
+    "variables": ["Count_CriminalActivities_CombinedCrime"],
+    "denominator": [],
+    "non_dividable":
+        False,
+    "scale":
+        True,
+    "blocks": [{
+        "is_overview": True,
+        "place_scope": "PLACE",
+        "charts": [{
+            "type": "LINE"
+        }, {
+            "type": "HIGHLIGHT"
+        }],
+    }],
+}, {
+    "category":
+        "Education",
+    "title_id":
+        "CHART_TITLE-Educational_attainment",
+    "title":
+        "Education attainment",
+    "denominator": [
+        "Sample_Denominator_1", "Sample_Denominator_2", "Sample_Denominator_3",
+        "Sample_Denominator_4", "Sample_Denominator_5"
+    ],
+    "description":
+        "Number of people who have attained various educational milestones, e.g. completed high school or have a bachelor's degree",
+    "non_dividable":
+        False,
+    "scale":
+        True,
+    "variables": [
+        "Count_Person_EducationalAttainmentNoSchoolingCompleted",
+        "Count_Person_EducationalAttainmentRegularHighSchoolDiploma",
+        "Count_Person_EducationalAttainmentBachelorsDegree",
+        "Count_Person_EducationalAttainmentMastersDegree",
+        "Count_Person_EducationalAttainmentDoctorateDegree"
+    ],
+    "blocks": [{
+        "is_overview": True,
+        "place_scope": "PLACE",
+        "charts": [{
+            "type": "LINE"
+        }, {
+            "type": "HIGHLIGHT"
+        }],
+    }]
+}]
+
+# Observation point response for place page testing
+OSERVATION_POINT_RESPONSE = {
+    "byVariable": {
+        "Count_CriminalActivities_CombinedCrime": {
+            "byEntity": {
+                "country/USA": {
+                    "dates": {
+                        "2022": {
+                            "value": 1000
+                        }
+                    }
+                }
+            }
+        },
+        # Include one education stat var to simulate data availability
+        "Count_Person_EducationalAttainmentBachelorsDegree": {
+            "byEntity": {
+                "country/USA": {
+                    "dates": {
+                        "2022": {
+                            "value": 500
+                        }
+                    }
+                }
+            }
+        },
+        # Include Count_Person as it's used as the denominator.
+        "Count_Person": {
+            "byEntity": {
+                "country/USA": {
+                    "dates": {
+                        "2022": {
+                            "value": 5000
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Observation within point response for place page testing
+OSERVATION_WITHIN_POINT_RESPONSE = {
+    "byVariable": {
+        "Count_CriminalActivities_CombinedCrime": {
+            "byEntity": {
+                "geoId/123": {
+                    "dates": {
+                        "2022": {
+                            "value": 200
+                        }
+                    }
+                }
+            }
+        },
+        # Simulate a child place with data for an educational stat var
+        "Count_Person_EducationalAttainmentMastersDegree": {
+            "byEntity": {
+                "geoId/456": {
+                    "dates": {
+                        "2022": {
+                            "value": 50
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Multiple property values response for place page testing
+MULTIPLE_PROPERTY_VALUES_RESPONSE = {
+    "country/USA": {
+        "typeOf": ["Country"],
+        "name": ['United States']
+    }
+}
+
+# Multiple property values response with languages for place page testing
+MULTIPLE_PROPERTY_VALUES_RESPONSE_WITH_LANGUAGES = {
+    'country/USA': {
+        'typeOf': ['Country'],
+        'name': ['United States of America'],
+        'nameWithLanguage': []
+    },
+    'country/CAN': {
+        'typeOf': ['Country'],
+        'name': ['Canada'],
+        'nameWithLanguage': []
+    },
+    'country/MEX': {
+        'typeOf': ['Country'],
+        'name': ['Mexico'],
+        'nameWithLanguage': []
+    },
+    'country/GBR': {
+        'typeOf': ['Country'],
+        'name': ['United Kingdom'],
+        'nameWithLanguage': []
+    },
+    'country/AUS': {
+        'typeOf': ['Country'],
+        'name': ['Australia'],
+        'nameWithLanguage': []
+    },
+    'geoId/06': {
+        'typeOf': ['State'],
+        'name': ['California'],
+        'nameWithLanguage': []
+    },
+    'geoId/07': {
+        'typeOf': ['State'],
+        'name': ['New York'],
+        'nameWithLanguage': []
+    }
+}
+
+DC_STAT_VAR_SEARCH_RESPONSE_SVG = {'statVarGroups': ['group_1', 'group_2']}
+DC_STAT_VAR_SEARCH_RESPONSE_NO_ENTITIES = {
+    'statVarGroups': ['group_3'],
+    'statVars': [{
+        'name': 'sv2',
+        'dcid': 'sv2'
+    }]
+}
+STAT_VAR_SEARCH_RESPONSE_SV_ONLY = {
+    'statVars': [{
+        'name': 'sv1',
+        'dcid': 'sv1'
+    }]
+}
+
+
+# Mock classes for Vertex AI search results returned from discoveryengine
+class MockVertexAIResult:
+
+  def __init__(self, results, next_page_token=None):
+    self.results = results
+    self.next_page_token = next_page_token
+
+
+class MockResponseItem:
+
+  def __init__(self, document_data):
+    self.document = MockDocument(document_data)
+
+
+class MockDocument:
+
+  def __init__(self, struct_data):
+    self.struct_data = struct_data
+
+
+VERTEX_AI_STAT_VAR_SEARCH_API_RESPONSE_PAGE_ONE = MockVertexAIResult(
+    results=[
+        MockResponseItem(document_data={
+            'dcid': 'sv1',
+            'name': 'sv1'
+        }),
+        MockResponseItem(document_data={
+            'dcid': 'sv2',
+            'name': 'sv2'
+        }),
+        MockResponseItem(document_data={
+            'dcid': 'sv3',
+            'name': 'sv3'
+        })
+    ],
+    next_page_token='page_two')
+
+VERTEX_AI_STAT_VAR_SEARCH_API_RESPONSE_PAGE_TWO = MockVertexAIResult(
+    results=[
+        MockResponseItem(document_data={
+            'dcid': 'sv4',
+            'name': 'sv4'
+        }),
+        MockResponseItem(document_data={
+            'dcid': 'sv5',
+            'name': 'sv5'
+        }),
+        MockResponseItem(document_data={
+            'dcid': 'sv6',
+            'name': 'sv6'
+        })
+    ],
+    next_page_token=None)
+
+VERTEX_AI_STAT_VAR_SEARCH_API_RESPONSE_MISSING_DATA = MockVertexAIResult(
+    results=[
+        MockResponseItem(document_data={
+            'dcid': 'sv1',
+            'name': 'sv1'
+        }),
+        MockResponseItem(document_data={'name': 'sv2'}),
+        MockResponseItem(document_data={
+            'dcid': 'sv3',
+        })
+    ],
+    next_page_token=None)
+
+VERTEX_AI_STAT_VAR_SEARCH_RESULT_PAGE_ONE = {
+    'statVars': [{
+        'dcid': 'sv1',
+        'name': 'sv1'
+    }, {
+        'dcid': 'sv2',
+        'name': 'sv2'
+    }, {
+        'dcid': 'sv3',
+        'name': 'sv3'
+    }]
+}
+
+VERTEX_AI_STAT_VAR_SEARCH_RESULT_ALL = {
+    'statVars': [{
+        'dcid': 'sv1',
+        'name': 'sv1'
+    }, {
+        'dcid': 'sv2',
+        'name': 'sv2'
+    }, {
+        'dcid': 'sv3',
+        'name': 'sv3'
+    }, {
+        'dcid': 'sv4',
+        'name': 'sv4'
+    }, {
+        'dcid': 'sv5',
+        'name': 'sv5'
+    }, {
+        'dcid': 'sv6',
+        'name': 'sv6'
+    }]
+}
+
+VERTEX_AI_STAT_VAR_FILTER_RESULT = {
+    'statVars': [{
+        'dcid': 'sv1',
+        'name': 'sv1'
+    }, {
+        'dcid': 'sv2',
+        'name': 'sv2'
+    }, {
+        'dcid': 'sv3',
+        'name': 'sv3'
+    }]
 }

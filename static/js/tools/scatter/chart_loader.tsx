@@ -19,12 +19,30 @@
  * and passing the data to a `Chart` component that plots the scatter plot.
  */
 
+import { dataRowsToCsv } from "@datacommonsorg/client";
 import _ from "lodash";
-import React, { useContext, useEffect, useState } from "react";
+import React, {
+  ReactElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { Point } from "../../chart/draw_scatter";
-import { DEFAULT_POPULATION_DCID } from "../../shared/constants";
-import { FacetSelectorFacetInfo } from "../../shared/facet_selector";
+import { CSV_FIELD_DELIMITER } from "../../constants/tile_constants";
+import { ChartEmbed } from "../../place/chart_embed";
+import {
+  DEFAULT_POPULATION_DCID,
+  WEBSITE_SURFACE,
+} from "../../shared/constants";
+import { FacetSelectorFacetInfo } from "../../shared/facet_selector/facet_selector";
+import {
+  buildObservationSpecs,
+  ObservationSpec,
+} from "../../shared/observation_specs";
 import {
   EntityObservation,
   EntityObservationList,
@@ -33,11 +51,15 @@ import {
   SeriesApiResponse,
   StatMetadata,
 } from "../../shared/stat_types";
-import { saveToFile } from "../../shared/util";
+import { StatVarFacetMap, StatVarSpec } from "../../shared/types";
+import { getCappedStatVarDate, saveToFile } from "../../shared/util";
 import { scatterDataToCsv } from "../../utils/chart_csv_utils";
-import { getSeriesWithin } from "../../utils/data_fetch_utils";
+import { getDataCommonsClient } from "../../utils/data_commons_client";
+import { FacetResponse, getSeriesWithin } from "../../utils/data_fetch_utils";
 import { getPlaceScatterData } from "../../utils/scatter_data_utils";
+import { getMergedSvg, transformCsvHeader } from "../../utils/tile_utils";
 import { Chart } from "./chart";
+import { useFacetMetadata } from "./compute/facet_metadata";
 import {
   Axis,
   AxisWrapper,
@@ -56,8 +78,10 @@ type Cache = {
   statVarsData: Record<string, EntityObservation>;
   allStatVarsData: Record<string, EntityObservationList>;
   metadataMap: Record<string, StatMetadata>;
+  baseFacets: FacetResponse;
   populationData: SeriesApiResponse;
   noDataError: boolean;
+  error: boolean;
   xAxis: Axis;
   yAxis: Axis;
   place: PlaceInfo;
@@ -70,30 +94,190 @@ type ChartData = {
   yUnit: string;
 };
 
-export function ChartLoader(): JSX.Element {
+export function ChartLoader(): ReactElement {
   const { x, y, place, display } = useContext(Context);
   const cache = useCache();
   const chartData = useChartData(cache);
+
+  const { facetSelectorMetadata, facetListLoading, facetListError } =
+    useFacetMetadata(cache?.baseFacets || null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const embedModalElement = useRef<ChartEmbed>(null);
 
   const xVal = x.value;
   const yVal = y.value;
   const shouldRenderChart =
     areStatVarInfoLoaded(xVal, yVal) && !_.isEmpty(chartData);
+
+  /**
+   * The stat var specs for the current chart configuration.
+   */
+  const currentStatVarSpecs: StatVarSpec[] = useMemo(() => {
+    if (!xVal.statVarDcid || !yVal.statVarDcid) return [];
+    return [
+      {
+        statVar: xVal.statVarDcid,
+        denom: xVal.perCapita ? xVal.denom : undefined,
+        unit: chartData?.xUnit || undefined,
+        scaling: undefined,
+        log: xVal.log,
+        name: xVal.statVarInfo?.title || xVal.statVarDcid,
+        facetId: xVal.metahash || undefined,
+        date: xVal.date || undefined,
+      },
+      {
+        statVar: yVal.statVarDcid,
+        denom: yVal.perCapita ? yVal.denom : undefined,
+        unit: chartData?.yUnit || undefined,
+        scaling: undefined,
+        log: yVal.log,
+        name: yVal.statVarInfo?.title || yVal.statVarDcid,
+        facetId: yVal.metahash || undefined,
+        date: yVal.date || undefined,
+      },
+    ];
+  }, [xVal, yVal, chartData]);
+
+  /**
+   * Convert facet metadata and mappings (derived from the chart store) into a format
+   * to be used for citation display in the embed modal.
+   */
+  const { facets, statVarToFacets } = useMemo(() => {
+    const facets: Record<string, StatMetadata> = {};
+    const statVarToFacets: StatVarFacetMap = {};
+
+    if (!cache) return { facets, statVarToFacets };
+
+    // We create the facet map from the cache's metadataMap.
+    if (cache.metadataMap) {
+      for (const facetId in cache.metadataMap) {
+        facets[facetId] = cache.metadataMap[facetId];
+      }
+    }
+
+    // We then build the statVar to facet mapping from baseFacets.
+    if (cache.baseFacets) {
+      for (const statVarDcid in cache.baseFacets) {
+        if (!statVarToFacets[statVarDcid]) {
+          statVarToFacets[statVarDcid] = new Set();
+        }
+        for (const facetId in cache.baseFacets[statVarDcid]) {
+          statVarToFacets[statVarDcid].add(facetId);
+        }
+      }
+    }
+
+    return { facets, statVarToFacets };
+  }, [cache]);
+
+  /**
+   * Callback function for building observation specifications.
+   * This is used by the API dialog to generate API calls (e.g., cURL
+   * commands) for the user.
+   *
+   * @returns An array of `ObservationSpec` objects.
+   */
+  const getObservationSpecs = useCallback((): ObservationSpec[] => {
+    if (
+      currentStatVarSpecs.length === 0 ||
+      !place.value.enclosingPlace.dcid ||
+      !place.value.enclosedPlaceType
+    ) {
+      return [];
+    }
+
+    const entityExpression = `${place.value.enclosingPlace.dcid}<-containedInPlace+{typeOf:${place.value.enclosedPlaceType}}`;
+
+    const specsWithDate = currentStatVarSpecs.map((spec) => ({
+      ...spec,
+      date: getCappedStatVarDate(spec.statVar, spec.date) || "LATEST",
+    }));
+
+    return buildObservationSpecs({
+      statVarSpecs: specsWithDate,
+      statVarToFacets,
+      entityExpression,
+    });
+  }, [
+    currentStatVarSpecs,
+    place.value.enclosingPlace.dcid,
+    place.value.enclosedPlaceType,
+    statVarToFacets,
+  ]);
+
+  /**
+   * Returns callback for fetching chart CSV data.
+   * @returns A promise that resolves to chart CSV data.
+   */
+  const getDataCsv = useCallback(async (): Promise<string> => {
+    // Assume both variables will have the same date
+    /*
+     TODO (nick-next): Update getDataCsv to handle different dates for different variables
+        see also scatter_tile.tsx.
+     */
+    if (
+      currentStatVarSpecs.length === 0 ||
+      !place.value.enclosingPlace.dcid ||
+      !place.value.enclosedPlaceType
+    ) {
+      return "";
+    }
+
+    const dataCommonsClient = getDataCommonsClient();
+    const date = getCappedStatVarDate(
+      currentStatVarSpecs[0].statVar,
+      currentStatVarSpecs[0].date
+    );
+
+    const rows = await dataCommonsClient.getDataRows({
+      childType: place.value.enclosedPlaceType,
+      date,
+      parentEntity: place.value.enclosingPlace.dcid,
+      variables: [],
+      statVarSpecs: currentStatVarSpecs,
+    });
+
+    return dataRowsToCsv(rows, CSV_FIELD_DELIMITER, transformCsvHeader);
+  }, [
+    currentStatVarSpecs,
+    place.value.enclosingPlace.dcid,
+    place.value.enclosedPlaceType,
+  ]);
+
+  /**
+   * Shows the chart embed (download) modal.
+   */
+  const handleEmbed = useCallback((): void => {
+    if (!embedModalElement.current || !containerRef.current) return;
+
+    const { svgXml, height, width } = getMergedSvg(containerRef.current);
+    embedModalElement.current.show(
+      svgXml,
+      getDataCsv,
+      width,
+      height,
+      "",
+      "",
+      "",
+      chartData?.sources ? Array.from(chartData.sources) : [],
+      WEBSITE_SURFACE
+    );
+  }, [getDataCsv, chartData?.sources]);
+
   if (!shouldRenderChart) {
     return <></>;
   }
 
   const xFacetInfo = getFacetInfo(
     xVal,
-    cache.allStatVarsData,
-    cache.metadataMap
+    facetSelectorMetadata[xVal.statVarDcid]
   );
   const yFacetInfo = getFacetInfo(
     yVal,
-    cache.allStatVarsData,
-    cache.metadataMap
+    facetSelectorMetadata[yVal.statVarDcid]
   );
-  const onSvFacetIdUpdated = (update) => {
+  const onSvFacetIdUpdated = (update): void => {
     for (const sv of Object.keys(update)) {
       if (x.value.statVarDcid === sv) {
         x.setMetahash(update[sv]);
@@ -103,10 +287,10 @@ export function ChartLoader(): JSX.Element {
     }
   };
   return (
-    <>
+    <div ref={containerRef}>
       {shouldRenderChart && (
         <>
-          {cache.noDataError || _.isEmpty(chartData.points) ? (
+          {cache.noDataError || cache.error || _.isEmpty(chartData.points) ? (
             <div className="error-message">
               Sorry, no data available. Try different stat vars or place
               options.
@@ -130,14 +314,25 @@ export function ChartLoader(): JSX.Element {
                   [x.value.statVarDcid]: x.value.metahash,
                   [y.value.statVarDcid]: y.value.metahash,
                 }}
-                facetList={[xFacetInfo, yFacetInfo]}
                 onSvFacetIdUpdated={onSvFacetIdUpdated}
+                facetList={[xFacetInfo, yFacetInfo]}
+                facetListLoading={facetListLoading}
+                facetListError={facetListError}
+                handleEmbed={handleEmbed}
+                getObservationSpecs={getObservationSpecs}
+                containerRef={containerRef}
+              />
+              <ChartEmbed
+                ref={embedModalElement}
+                facets={facets}
+                statVarSpecs={currentStatVarSpecs}
+                statVarToFacets={statVarToFacets}
               />
             </>
           )}
         </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -162,7 +357,7 @@ function useCache(): Cache {
       !isLoading.areDataLoading &&
       !areDataLoaded(cache, xVal, yVal, placeVal)
     ) {
-      loadData(x, y, placeVal, isLoading, setCache);
+      void loadData(x, y, placeVal, isLoading, setCache);
     }
   }, [xVal, yVal, placeVal]);
 
@@ -174,7 +369,6 @@ function useCache(): Cache {
  * @param x
  * @param y
  * @param place
- * @param date
  * @param isLoading
  * @param setCache
  */
@@ -184,18 +378,22 @@ async function loadData(
   place: PlaceInfo,
   isLoading: IsLoadingWrapper,
   setCache: (cache: Cache) => void
-) {
+): Promise<void> {
   isLoading.setAreDataLoading(true);
   const statResponsePromise: Promise<PointApiResponse> = getStatWithinPlace(
     place.enclosingPlace.dcid,
     place.enclosedPlaceType,
-    [x.value, y.value]
+    [x.value, y.value],
+    "", // apiRoot
+    WEBSITE_SURFACE
   );
   const statAllResponsePromise: Promise<PointAllApiResponse> =
-    getStatAllWithinPlace(place.enclosingPlace.dcid, place.enclosedPlaceType, [
-      x.value,
-      y.value,
-    ]);
+    getStatAllWithinPlace(
+      place.enclosingPlace.dcid,
+      place.enclosedPlaceType,
+      [x.value, y.value],
+      WEBSITE_SURFACE
+    );
   const populationSvList = new Set([DEFAULT_POPULATION_DCID]);
   for (const axis of [x.value, y.value]) {
     if (axis.denom) {
@@ -206,30 +404,71 @@ async function loadData(
     "",
     place.enclosingPlace.dcid,
     place.enclosedPlaceType,
-    Array.from(populationSvList)
+    Array.from(populationSvList),
+    null, // facetIds
+    WEBSITE_SURFACE
   );
-  Promise.all([statResponsePromise, statAllResponsePromise, populationPromise])
-    .then(([statResponse, statAllResponse, populationData]) => {
-      let metadataMap = statResponse.facets || {};
-      metadataMap = Object.assign(metadataMap, statAllResponse.facets);
-      const allStatVarsData = statAllResponse.data;
-      const cache = {
-        allStatVarsData,
-        metadataMap,
-        noDataError: _.isEmpty(statResponse.data),
-        populationData,
-        statVarsData: statResponse.data,
-        xAxis: x.value,
-        yAxis: y.value,
-        place,
-      };
-      isLoading.setAreDataLoading(false);
-      setCache(cache);
-    })
-    .catch(() => {
-      alert("Error fetching data.");
-      isLoading.setAreDataLoading(false);
+  try {
+    const [statResponse, statAllResponse, populationData] = await Promise.all([
+      statResponsePromise,
+      statAllResponsePromise,
+      populationPromise,
+    ]);
+
+    const metadataMap = {
+      ...(statResponse.facets || {}),
+      ...(statAllResponse.facets || {}),
+    };
+
+    const baseFacets: FacetResponse = {};
+    const statVars = [x.value.statVarDcid, y.value.statVarDcid];
+    for (const sv of statVars) {
+      baseFacets[sv] = {};
+      if (statAllResponse.data[sv]) {
+        for (const placeDcid in statAllResponse.data[sv]) {
+          for (const obs of statAllResponse.data[sv][placeDcid]) {
+            if (metadataMap[obs.facet]) {
+              baseFacets[sv][obs.facet] = metadataMap[obs.facet];
+            }
+          }
+        }
+      }
+    }
+
+    const allStatVarsData = statAllResponse.data;
+    const noDataError =
+      _.isEmpty(statResponse.data) ||
+      Object.values(statResponse.data).every(_.isEmpty);
+    const cache: Cache = {
+      allStatVarsData,
+      metadataMap,
+      baseFacets,
+      noDataError,
+      error: false,
+      populationData,
+      statVarsData: statResponse.data,
+      xAxis: x.value,
+      yAxis: y.value,
+      place,
+    };
+    setCache(cache);
+  } catch {
+    setCache({
+      statVarsData: {},
+      allStatVarsData: {},
+      metadataMap: {},
+      baseFacets: {},
+      populationData: null,
+      noDataError: true,
+      error: true,
+      xAxis: x.value,
+      yAxis: y.value,
+      place,
     });
+    alert("Error fetching data.");
+  } finally {
+    isLoading.setAreDataLoading(false);
+  }
 }
 
 /**
@@ -256,19 +495,13 @@ function useChartData(cache: Cache): ChartData {
     ) {
       return;
     }
-    const chartData = getChartData(
-      xVal,
-      yVal,
-      placeVal,
-      display.chartType,
-      cache
-    );
+    const chartData = getChartData(xVal, yVal, placeVal, cache);
     setChartData(chartData);
 
     const downloadButton = document.getElementById("download-link");
     if (downloadButton) {
       downloadButton.style.display = "inline-block";
-      downloadButton.onclick = () =>
+      downloadButton.onclick = (): void =>
         downloadData(xVal, yVal, placeVal, chartData.points);
     }
   }, [cache, xVal, yVal, placeVal, display.chartType]);
@@ -313,7 +546,6 @@ function getChartData(
   x: Axis,
   y: Axis,
   place: PlaceInfo,
-  chartType: ScatterChartType,
   cache: Cache
 ): ChartData {
   let xStatData = extractFacetData(
@@ -330,10 +562,6 @@ function getChartData(
   if (_.isEmpty(yStatData)) {
     yStatData = cache.statVarsData[y.statVarDcid];
   }
-  const popBounds: [number, number] =
-    chartType === ScatterChartType.MAP
-      ? null
-      : [place.lowerBound, place.upperBound];
   const points = {};
   const sources: Set<string> = new Set();
   let xUnit = "";
@@ -345,11 +573,11 @@ function getChartData(
       namedPlace,
       xStatData,
       yStatData,
+      {}, // empty denomByFacet since we only care about the singular populationData here
       cache.populationData,
       cache.metadataMap,
       xDenom,
-      yDenom,
-      popBounds
+      yDenom
     );
     if (_.isEmpty(placeChartData)) {
       continue;
@@ -368,22 +596,13 @@ function getChartData(
 
 function getFacetInfo(
   axis: Axis,
-  allStatVarsData: Record<string, EntityObservationList>,
-  metadataMap: Record<string, StatMetadata>
+  metadataMapForSv: Record<string, StatMetadata>
 ): FacetSelectorFacetInfo {
-  const filteredMetadataMap: Record<string, StatMetadata> = {};
-  const sv = axis.statVarDcid;
-  for (const place in allStatVarsData[sv]) {
-    for (const obs of allStatVarsData[sv][place]) {
-      if (obs.facet in metadataMap) {
-        filteredMetadataMap[obs.facet] = metadataMap[obs.facet];
-      }
-    }
-  }
+  const metadataMap = metadataMapForSv || {};
   return {
-    dcid: sv,
-    metadataMap: filteredMetadataMap,
-    name: axis.statVarInfo.title || sv,
+    dcid: axis.statVarDcid,
+    metadataMap,
+    name: axis.statVarInfo.title || axis.statVarDcid,
   };
 }
 /**
@@ -404,8 +623,10 @@ function areStatVarInfoLoaded(x: Axis, y: Axis): boolean {
 /**
  * Checks if the population (for per capita) and statvar data
  * have been loaded for both axes.
+ * @param cache
  * @param x
  * @param y
+ * @param place
  */
 function areDataLoaded(
   cache: Cache,
@@ -425,9 +646,7 @@ function areDataLoaded(
   const yStatVar = y.statVarDcid;
   return (
     xStatVar in cache.statVarsData &&
-    !_.isEmpty(cache.statVarsData[xStatVar]) &&
     yStatVar in cache.statVarsData &&
-    !_.isEmpty(cache.statVarsData[yStatVar]) &&
     cache.xAxis.date === x.date &&
     cache.yAxis.date === y.date &&
     cache.xAxis.denom === x.denom &&
@@ -439,6 +658,9 @@ function areDataLoaded(
 
 /**
  * Saves data to a CSV file.
+ * @param x
+ * @param y
+ * @param place
  * @param points
  */
 function downloadData(

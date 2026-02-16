@@ -22,8 +22,11 @@ from flask import current_app
 from flask import redirect
 from flask import render_template
 from flask import request
+from flask import Response
 
+from server.lib.cache import cache
 import server.lib.render as lib_render
+from server.routes import TIMEOUT
 from server.services import datacommons as dc
 
 bp = Blueprint('static', __name__)
@@ -39,13 +42,29 @@ def homepage():
   return lib_render.render_page(
       "static/homepage.html",
       "homepage.html",
-      topics=current_app.config.get('HOMEPAGE_TOPICS', []),
+      topics=json.dumps(current_app.config.get('HOMEPAGE_TOPICS', [])),
       partners_list=current_app.config.get('HOMEPAGE_PARTNERS', []),
-      partners=json.dumps(current_app.config.get('HOMEPAGE_PARTNERS', [])))
+      partners=json.dumps(current_app.config.get('HOMEPAGE_PARTNERS', [])),
+      sample_questions=json.dumps(
+          current_app.config.get('HOMEPAGE_SAMPLE_QUESTIONS', [])))
 
 @bp.route('/about')
 def about():
   return lib_render.render_page("static/about.html", "about.html")
+
+
+@bp.route('/build')
+def build():
+  return lib_render.render_page(
+      "static/build.html",
+      "build.html",
+      partners=json.dumps(current_app.config.get('HOMEPAGE_PARTNERS', [])))
+
+
+@bp.route("/data", defaults={"path": ""}, strict_slashes=False)
+@bp.route("/data/<path:path>")
+def data(path):
+  return lib_render.render_page("static/data.html", "data.html")
 
 
 @bp.route('/faq')
@@ -68,15 +87,16 @@ def feedback():
   return lib_render.render_page("static/feedback.html", "feedback.html")
 
 
-# TODO(beets): Move this to a separate handler so it won't be installed on all apps.
-@bp.route('/translator')
-def translator_handler():
-  return render_template('translator.html')
-
-
 @bp.route('/healthz')
 def healthz():
   return "very healthy"
+
+
+# Alternate health check route in case /healthz is intercepted by infrastructure
+# (e.g. when running as a Cloud Run service)
+@bp.route('/health')
+def health():
+  return "super healthy"
 
 
 # TODO(beets): Move this to a separate handler so it won't be installed on all apps.
@@ -85,14 +105,34 @@ def mcf_playground():
   return render_template('mcf_playground.html')
 
 
-# TODO(shifucun): get branch cache version from mixer
 @bp.route('/version')
 def version():
   mixer_version = dc.version()
-  return render_template('version.html',
-                         website_hash=os.environ.get("WEBSITE_HASH"),
-                         mixer_hash=mixer_version.get('gitHash', ''),
-                         tables=mixer_version.get('tables', ''),
-                         bigquery=mixer_version.get('bigquery', ''),
-                         remote_mixer_domain=mixer_version.get(
-                             'remoteMixerDomain', ''))
+  mixer_feature_flags = {}
+  try:
+    mixer_feature_flags = json.loads(mixer_version.get('featureFlags', '{}'))
+  except json.JSONDecodeError:
+    pass
+
+  return render_template(
+      'version.html',
+      website_hash=os.environ.get("WEBSITE_HASH"),
+      mixer_hash=mixer_version.get('gitHash', ''),
+      tables=mixer_version.get('tables', ''),
+      bigquery=mixer_version.get('bigquery', ''),
+      featureFlags=current_app.config.get('FEATURE_FLAGS', []),
+      mixerFeatureFlags=mixer_feature_flags,
+      remote_mixer_domain=mixer_version.get('remoteMixerDomain', ''))
+
+
+@bp.route('/robots.txt')
+@cache.cached(timeout=TIMEOUT)
+def robots_config():
+  robots_content = ""
+  if current_app.config.get('DISABLE_CRAWLERS', False):
+    robots_content = "User-agent: *\nDisallow: /"
+  else:
+    with current_app.open_resource("dist/robots.txt", 'r') as f:
+      robots_content = f.read()
+
+  return Response(robots_content, mimetype="text/plain")

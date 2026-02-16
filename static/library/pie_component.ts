@@ -24,6 +24,7 @@ import {
   DonutTile,
   DonutTilePropType,
 } from "../js/components/tiles/donut_tile";
+import { WEB_COMPONENT_SURFACE } from "./constants";
 import {
   convertArrayAttribute,
   convertBooleanAttribute,
@@ -101,7 +102,7 @@ export class DatacommonsPieComponent extends LitElement {
   @property({ type: Array<string>, converter: convertArrayAttribute })
   sources?: string[];
 
-  render(): HTMLElement {
+  render(): HTMLDivElement {
     const statVarSpec = [];
     this.variables.forEach((statVarDcid) => {
       statVarSpec.push({
@@ -128,6 +129,7 @@ export class DatacommonsPieComponent extends LitElement {
       subtitle: this.subheader,
       svgChartHeight: 200,
       title: this.header || this.title,
+      surface: WEB_COMPONENT_SURFACE,
     };
     return createWebComponentElement(DonutTile, donutTileProps);
   }

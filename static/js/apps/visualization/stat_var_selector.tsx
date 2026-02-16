@@ -35,7 +35,10 @@ import {
 import { Spinner } from "../../components/spinner";
 import { getStatVarInfo } from "../../shared/stat_var";
 import { StatVarHierarchy } from "../../stat_var_hierarchy/stat_var_hierarchy";
-import { getFilteredStatVarPromise } from "../../utils/app/visualization_utils";
+import {
+  getFilteredStatVarPromise,
+  getNumEntitiesExistence,
+} from "../../utils/app/visualization_utils";
 import { AppContext } from "./app_context";
 import { VIS_TYPE_CONFIG } from "./vis_type_configs";
 
@@ -104,9 +107,9 @@ export function StatVarSelector(props: StatVarSelectorPropType): JSX.Element {
             selectSV={addSv}
             searchLabel={""}
             deselectSV={removeSv}
-            numEntitiesExistence={Math.min(
-              Math.max(samplePlaces.length, 1),
-              visTypeConfig.svHierarchyNumExistence || 1
+            numEntitiesExistence={getNumEntitiesExistence(
+              samplePlaces,
+              visTypeConfig
             )}
           />
         )}
@@ -117,7 +120,7 @@ export function StatVarSelector(props: StatVarSelectorPropType): JSX.Element {
           {selectedStatVars.length >= (visTypeConfig.numSv || 1) && (
             <div
               className="primary-button continue-button"
-              onClick={() => setStatVars(selectedStatVars)}
+              onClick={(): void => setStatVars(selectedStatVars)}
             >
               Display
             </div>
@@ -132,7 +135,7 @@ export function StatVarSelector(props: StatVarSelectorPropType): JSX.Element {
           id="statvar-modal"
         >
           <ModalHeader
-            toggle={() => {
+            toggle={(): void => {
               removeSv(extraSv.dcid);
               setExtraSv(null);
             }}
@@ -155,7 +158,7 @@ export function StatVarSelector(props: StatVarSelectorPropType): JSX.Element {
                             type="radio"
                             name="statvar"
                             defaultChecked={idx === modalSelection}
-                            onClick={() => setModalSelection(idx)}
+                            onClick={(): void => setModalSelection(idx)}
                           />
                           {sv.info.title || sv.dcid}
                         </Label>
@@ -168,7 +171,7 @@ export function StatVarSelector(props: StatVarSelectorPropType): JSX.Element {
           <ModalFooter>
             <Button
               color="primary"
-              onClick={() => {
+              onClick={(): void => {
                 const newStatVars = _.cloneDeep(selectedStatVars).filter(
                   (sv) => sv.dcid !== extraSv.dcid
                 );

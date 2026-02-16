@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,23 +13,27 @@
 # limitations under the License.
 """Place Explorer related handlers."""
 
+import html
 import json
 import logging
 import os
-import re
-import time
+from typing import List, Set
+from urllib.parse import urlencode
 
 import flask
 from flask import current_app
 from flask import g
-from flask_babel import gettext
+from werkzeug.datastructures import MultiDict
 
+from server.lib.cache import cache
 from server.lib.i18n import AVAILABLE_LANGUAGES
+from server.lib.i18n import DEFAULT_LOCALE
 import server.routes.shared_api.place as place_api
-from shared.lib.place_summaries import get_shard_filename_by_dcid
-from shared.lib.place_summaries import get_shard_name
+import shared.lib.gcs as gcs
 
 bp = flask.Blueprint('place', __name__, url_prefix='/place')
+
+PROD_PLACE_PAGE_BASE_URL = 'https://datacommons.org/place/'
 
 CATEGORIES = {
     "Economics",
@@ -47,14 +51,9 @@ CATEGORY_REDIRECTS = {
     "Climate": "Environment",
 }
 
-# Main DC domain to use for canonical URLs
-CANONICAL_DOMAIN = 'datacommons.org'
-
-# Location of place summary jsons on GKE
-PLACE_SUMMARY_DIR = "/datacommons/place-summary/"
-
 # Parent place types to include in listing of containing places at top of page
-PARENT_PLACE_TYPES_TO_HIGHLIGHT = {
+# Keep sorted!
+PARENT_PLACE_TYPES_TO_HIGHLIGHT = [
     'County',
     'AdministrativeArea2',
     'EurostatNUTS2',
@@ -63,139 +62,134 @@ PARENT_PLACE_TYPES_TO_HIGHLIGHT = {
     'EurostatNUTS1',
     'Country',
     'Continent',
-}
+]
 
 
-def get_place_summaries(dcid: str) -> dict:
-  """Load place summary content from disk containing summary for a given dcid"""
-  # Get shard matching the given dcid
-  shard_name = get_shard_name(dcid)
-  if not shard_name:
-    shard_name = 'others'
-  # When deployed in GKE, the config is a config mounted as volume. Check this
-  # first.
-  filepath = os.path.join(PLACE_SUMMARY_DIR, shard_name, "place_summaries.json")
-  logging.info(
-      f"Attempting to load summaries from ConfigMap mounted at {filepath}")
-  if os.path.isfile(filepath):
-    logging.info(f"Loading summaries from {filepath}")
-    with open(filepath) as f:
-      return json.load(f)
-  # If no mounted config file, use the config that is in the code base.
-  filename = get_shard_filename_by_dcid(dcid)
-  logging.info(
-      f"ConfigMap not found. Loading summaries locally from config/summaries/{filename}"
-  )
-  local_path = os.path.join(current_app.root_path,
-                            f'config/summaries/{filename}')
-  with open(local_path) as f:
-    return json.load(f)
+def get_canonical_links(place_dcid: str, place_category: str) -> List[str]:
+  """Returns canonical and alternate language header links for the place page
 
+  Returns an empty list if the place category is invalid.
 
-def generate_link_headers(place_dcid: str, category: str,
-                          current_locale: str) -> str:
-  """Generate canonical and alternate link HTTP headers
-  
-  Search crawlers look for rel="canonical" link headers to determine which
-  version of a page to crawl and rel="alternative" link headers to identify
-  different localized versions of the same page.
+  Always sets the base url to "https://datacommons.org/place/" to avoid indexing
+  dev or custom DC versions of the place pages.
 
   Args:
-    place_dcid: DCID of the place the page is about
-    category: category of the page
-    current_locale: locale of the page
-  
+    place_dcid: The DCID of the place to get canonical links for
+    place_category: The category of the place to get canonical links for
+
   Returns:
-    String to pass as value for 'Link' HTTP header
+    A list of canonical and alternate language header links for the place page
+
+  Example output:
+  <link rel="canonical" href="https://datacommons.org/place/geoId/06?category=Health">
+  <link rel="alternate" hreflang="x-default" href="https://datacommons.org/place/geoId/06?category=Health">
+  <link rel="alternate" hreflang="de" href="https://datacommons.org/place/geoId/06?category=Health&hl=de">
+  <link rel="alternate" hreflang="en" href="https://datacommons.org/place/geoId/06?category=Health">
+  <link rel="alternate" hreflang="es" href="https://datacommons.org/place/geoId/06?category=Health&hl=es">
+  <link rel="alternate" hreflang="fr" href="https://datacommons.org/place/geoId/06?category=Health&hl=fr">
+  <link rel="alternate" hreflang="hi" href="https://datacommons.org/place/geoId/06?category=Health&hl=hi">
+  <link rel="alternate" hreflang="it" href="https://datacommons.org/place/geoId/06?category=Health&hl=it">
+  <link rel="alternate" hreflang="ja" href="https://datacommons.org/place/geoId/06?category=Health&hl=ja">
+  <link rel="alternate" hreflang="ko" href="https://datacommons.org/place/geoId/06?category=Health&hl=ko">
+  <link rel="alternate" hreflang="ru" href="https://datacommons.org/place/geoId/06?category=Health&hl=ru">
   """
-  link_headers = []
-  for locale_code in AVAILABLE_LANGUAGES:
-    canonical_args = {
-        'place_dcid': place_dcid,
-        'category': category if category in CATEGORIES else None,
-        'hl': locale_code if locale_code != 'en' else None
-    }
-    localized_url = "https://" + CANONICAL_DOMAIN + flask.url_for(
-        'place.place', **canonical_args)
+  links = []
+  # Return empty list if the place category is invalid
+  if place_category and place_category not in CATEGORIES and place_category != 'Overview':
+    return links
 
-    # Add localized url as a language alternate link to headers
-    link_headers.append(
-        f'<{localized_url}>; rel="alternate"; hreflang="{locale_code}"')
+  # Add canonical URL without language parameter
+  query_params = {}
+  if place_category and place_category != 'Overview':
+    query_params['category'] = place_category
+  canonical_url = PROD_PLACE_PAGE_BASE_URL + html.escape(place_dcid)
+  if query_params:
+    canonical_url += '?' + urlencode(query_params)
+  links.append(f'<link rel="canonical" href="{canonical_url}">')
 
-    if locale_code == 'en':
-      # Set English as default if user is in unsupported locale
-      link_headers.append(
-          f'<{localized_url}>; rel="alternate"; hreflang="x-default"')
+  # Add x-default alternate link pointing to English version
+  links.append(
+      f'<link rel="alternate" hreflang="x-default" href="{canonical_url}">')
 
-    if locale_code == current_locale:
-      # Set the url of the current locale as the canonical
-      link_headers.append(f'<{localized_url}>; rel="canonical"')
-  return ', '.join(link_headers)
+  # Add language-specific alternate links
+  for lang in AVAILABLE_LANGUAGES:
+    query_params = {}
+    if place_category and place_category != 'Overview':
+      query_params['category'] = place_category
+    if lang != DEFAULT_LOCALE:
+      query_params['hl'] = lang
+    url = PROD_PLACE_PAGE_BASE_URL + html.escape(place_dcid)
+    if query_params:
+      url += '?' + urlencode(query_params)
+    links.append(f'<link rel="alternate" hreflang="{lang}" href="{url}">')
+  return links
 
 
-def is_canonical_domain(url: str) -> bool:
-  """Check if a url is on the canonical domain
-  
-  Used to determine if the request's URL is on the main DC instance.
-  Both HTTP and HTTPS urls are matched, and both canonical and staging URLs
-  are matched.
+def redirect_to_place_page(dcid: str, request_args: MultiDict[str, str]):
+  """Redirect to the place page for the given DCID
 
-
+  Handles redirects from Google Search using old URL format
   Args:
-    url: url to check
-  
+    dcid: The DCID of the place to redirect to
+    request_args: The request arguments to forward to the place page
   Returns:
-    True if request is to the canonical domain, False otherwise
+    A redirect to the place page
   """
-  regex = r"https?://(?:staging.)?{}".format(CANONICAL_DOMAIN)
-  return re.match(regex, url) is not None
-
-
-def get_place_html_link(place_dcid: str, place_name: str) -> str:
-  """Get <a href-place page url> tag linking to the place page for a place"""
-  url = flask.url_for('place.place', place_dcid=place_dcid)
-  return f'<a href="{url}">{place_name}</a>'
-
-
-def get_place_type_with_parent_places_links(dcid: str) -> str:
-  """Get '<place type> in <parent places>' with html links for a given DCID"""
-  # Get place type in localized, human-readable format
-  place_type = place_api.get_place_type(dcid)
-  place_type_display_name = place_api.get_place_type_i18n_name(place_type)
-
-  # Get parent places and their localized names
-  all_parents = place_api.parent_places([dcid],
-                                        include_admin_areas=True).get(dcid, [])
-  parents_to_include = [
-      parent for parent in all_parents
-      if parent['type'] in PARENT_PLACE_TYPES_TO_HIGHLIGHT
-  ]
-  parent_dcids = [parent['dcid'] for parent in parents_to_include]
-  localized_names = place_api.get_i18n_name(parent_dcids)
-  places_with_names = [
-      parent for parent in parents_to_include
-      if parent['dcid'] in localized_names.keys()
-  ]
-  # Generate <a href=place page url> tag for each parent place
-  links = [
-      get_place_html_link(place_dcid=parent['dcid'],
-                          place_name=localized_names.get(parent['dcid']))
-      if parent['type'] != 'Continent' else localized_names.get(parent['dcid'])
-      for parent in places_with_names
-  ]
-
-  if links:
-    return gettext('%(placeType)s in %(parentPlaces)s',
-                   placeType=place_type_display_name,
-                   parentPlaces=', '.join(links))
-  return ''
+  redirect_args = dict(request_args)
+  redirect_args['place_dcid'] = dcid
+  del redirect_args['dcid']
+  url = flask.url_for('place.place',
+                      **redirect_args,
+                      _external=True,
+                      _scheme=current_app.config.get('SCHEME', 'https'))
+  return flask.redirect(url)
 
 
 @bp.route('', strict_slashes=False)
-@bp.route('/<path:place_dcid>')
-def place(place_dcid=None):
-  redirect_args = dict(flask.request.args)
+@cache.cached(query_string=True)
+def place_explorer():
+  """Renders the place explorer landing page.
 
+  Also handles redirects from Google Search to individual place pages if the
+  request includes a dcid.
+  """
+  dcid = flask.request.args.get('dcid', None)
+
+  # If the request contains a dcid, redirect to the place page.
+  # This handles redirects from Google Search "Explore More" link.
+  # Example URL:
+  # https://datacommons.org/place?utm_medium=explore&dcid=geoId/06&mprop=count&popt=Person&hl=en
+  if dcid:
+    return redirect_to_place_page(dcid, flask.request.args)
+
+  # Otherwise, render the place explorer landing page
+  template_file = os.path.join('custom_dc', g.env, 'place_landing.html')
+  dcid_json = os.path.join('custom_dc', g.env, 'place_landing_dcids.json')
+  if not os.path.exists(
+      os.path.join(current_app.root_path, 'templates', template_file)):
+    template_file = 'place_landing.html'
+    dcid_json = 'place_landing_dcids.json'
+
+  with open(os.path.join(current_app.root_path, 'templates', dcid_json)) as f:
+    landing_dcids = json.load(f)
+    # Use display names (including state, if applicable) for the static page
+    place_names = place_api.get_display_name(landing_dcids)
+    return flask.render_template(
+        template_file,
+        place_names=place_names,
+        maps_api_key=current_app.config['MAPS_API_KEY'])
+
+
+@bp.route('/<path:place_dcid>', strict_slashes=False)
+@cache.cached(query_string=True)
+def place(place_dcid):
+  """
+  Renders place page with the given DCID.
+
+  Args:
+    place_dcid: DCID of the place to redirect to
+  """
+  redirect_args = dict(flask.request.args)
   # Strip trailing slashes from place dcids
   should_redirect = False
   if place_dcid and place_dcid.endswith('/'):
@@ -213,93 +207,26 @@ def place(place_dcid=None):
   if category in CATEGORY_REDIRECTS:
     redirect_args['category'] = CATEGORY_REDIRECTS[category]
     should_redirect = True
+  elif category is not None and category not in CATEGORIES:
+    # Redirect to the overview page if the category is invalid
+    redirect_args['category'] = None
+    should_redirect = True
 
   if should_redirect:
     redirect_args['place_dcid'] = place_dcid
     return flask.redirect(flask.url_for('place.place', **redirect_args),
                           code=301)
 
-  dcid = flask.request.args.get('dcid', None)
-  if dcid:
-    # Traffic from "explore more" in Search. Forward along all parameters,
-    # except for dcid, to the new URL format.
-    redirect_args = dict(flask.request.args)
-    redirect_args['place_dcid'] = dcid
-    del redirect_args['dcid']
-    redirect_args['category'] = category
-    url = flask.url_for('place.place',
-                        **redirect_args,
-                        _external=True,
-                        _scheme=current_app.config.get('SCHEME', 'https'))
-    return flask.redirect(url)
+  place_names = place_api.get_i18n_name([place_dcid]) or {}
+  place_name = place_names.get(place_dcid, place_dcid)
 
-  if not place_dcid:
-    return place_landing()
-
-  place_type = place_api.get_place_type(place_dcid)
-  place_type_with_parent_places_links = get_place_type_with_parent_places_links(
-      place_dcid)
-  place_names = place_api.get_i18n_name([place_dcid])
-  if place_names and place_names.get(place_dcid):
-    place_name = place_names[place_dcid]
-  else:
-    place_name = place_dcid
-
-  # Default to English page if translation is not available
-  locale = flask.request.args.get('hl')
-  if locale not in AVAILABLE_LANGUAGES:
-    locale = 'en'
-
-  is_overview = (not category) or (category == 'Overview')
-
-  place_summary = {}
-  if is_overview and os.environ.get('FLASK_ENV') in [
-      'local', 'autopush', 'dev', 'staging', 'production'
-  ] and locale == 'en':
-    # Only show summary for Overview page in base DC.
-    # Fetch summary text from mounted volume
-    start_time = time.time()
-    place_summary = get_place_summaries(place_dcid).get(place_dcid, {})
-    elapsed_time = (time.time() - start_time) * 1000
-    logging.info(f"Place page summary took {elapsed_time:.2f} milliseconds.")
-
-  # Block pages from being indexed if not on the main DC domain. This prevents
-  # crawlers from indexing dev or custom DC versions of the place pages.
-  block_indexing = not is_canonical_domain(flask.request.base_url)
-  logging.info(f"flask.requests.base_url is {flask.request.base_url}")
-  logging.info(f"Block indexing on place pages? {block_indexing}")
-
-  response = flask.make_response(
-      flask.render_template(
-          'place.html',
-          place_type=place_type,
-          place_name=place_name,
-          place_dcid=place_dcid,
-          place_type_with_parent_places_links=
-          place_type_with_parent_places_links,
-          category=category if category else '',
-          place_summary=place_summary.get('summary') if place_summary else '',
-          maps_api_key=current_app.config['MAPS_API_KEY'],
-          block_indexing=block_indexing))
-  response.headers.set('Link',
-                       generate_link_headers(place_dcid, category, locale))
-  return response
-
-
-def place_landing():
-  """Returns filled template for the place landing page."""
-  template_file = os.path.join('custom_dc', g.env, 'place_landing.html')
-  dcid_json = os.path.join('custom_dc', g.env, 'place_landing_dcids.json')
-  if not os.path.exists(
-      os.path.join(current_app.root_path, 'templates', template_file)):
-    template_file = 'place_landing.html'
-    dcid_json = 'place_landing_dcids.json'
-
-  with open(os.path.join(current_app.root_path, 'templates', dcid_json)) as f:
-    landing_dcids = json.load(f)
-    # Use display names (including state, if applicable) for the static page
-    place_names = place_api.get_display_name(landing_dcids)
-    return flask.render_template(
-        template_file,
-        place_names=place_names,
-        maps_api_key=current_app.config['MAPS_API_KEY'])
+  canonical_links = get_canonical_links(place_dcid, category)
+  return flask.render_template('place.html',
+                               canonical_links=canonical_links,
+                               category=category,
+                               maps_api_key=current_app.config['MAPS_API_KEY'],
+                               place_dcid=place_dcid,
+                               place_name=place_name,
+                               sample_questions=json.dumps(
+                                   current_app.config.get(
+                                       'HOMEPAGE_SAMPLE_QUESTIONS', [])))

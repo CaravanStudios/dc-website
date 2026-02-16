@@ -15,6 +15,8 @@
  */
 
 const path = require("path");
+const readline = require("readline");
+const webpack = require("webpack");
 const CopyPlugin = require("copy-webpack-plugin");
 const FixStyleOnlyEntriesPlugin = require("webpack-remove-empty-scripts");
 const SpeedMeasurePlugin = require("speed-measure-webpack-plugin");
@@ -37,19 +39,28 @@ const config = {
       __dirname + "/css/tools/stat_var.scss",
     ],
     dev: [__dirname + "/js/dev.ts", __dirname + "/css/dev.scss"],
+    datagemma: [
+      __dirname + "/js/apps/datagemma/main.ts",
+      __dirname + "/css/datagemma.scss",
+    ],
+    biomed_nl: [
+      __dirname + "/js/apps/biomed_nl/main.ts",
+      __dirname + "/css/biomed_nl.scss",
+    ],
     timeline: [
       __dirname + "/js/tools/timeline/timeline.ts",
       __dirname + "/css/tools/timeline.scss",
     ],
-    timeline_bulk_download: [__dirname + "/js/tools/timeline/bulk_download.ts"],
     mcf_playground: __dirname + "/js/mcf_playground.js",
-    place: [
-      __dirname + "/js/place/place.ts",
-      __dirname + "/css/place/place_page.scss",
-    ],
+    queryStore: path.resolve(__dirname, "js/shared/stores/query_store.ts"),
+    base: [__dirname + "/js/apps/base/main.ts", __dirname + "/css/core.scss"],
     place_landing: [
       __dirname + "/js/place/place_landing.ts",
       __dirname + "/css/place/place_landing.scss",
+    ],
+    place: [
+      __dirname + "/js/place/place.ts",
+      __dirname + "/css/place/place_page.scss",
     ],
     topic_page: [
       __dirname + "/js/apps/topic_page/main.ts",
@@ -63,13 +74,16 @@ const config = {
       __dirname + "/js/apps/explore/main.ts",
       __dirname + "/css/explore.scss",
     ],
-    nl_interface: [
-      __dirname + "/js/apps/nl_interface/main.ts",
-      __dirname + "/css/nl_interface.scss",
+    eval_embeddings: [
+      __dirname + "/js/apps/eval_embeddings/main.ts",
+      __dirname + "/css/eval_embeddings.scss",
     ],
-    nl_eval: [
-      __dirname + "/js/apps/nl_eval/main.ts",
-      __dirname + "/css/nl_eval.scss",
+    eval_retrieval_generation: [
+      __dirname + "/js/apps/eval_retrieval_generation/main.ts",
+      __dirname + "/css/eval_retrieval_generation.scss",
+    ],
+    eval_retrieval_generation_sxs: [
+      __dirname + "/js/apps/eval_retrieval_generation/sxs/main.ts",
     ],
     ranking: [
       __dirname + "/js/ranking/ranking.ts",
@@ -79,27 +93,11 @@ const config = {
       __dirname + "/js/browser/browser.ts",
       __dirname + "/css/browser.scss",
     ],
-    biomedical_landing: [
-      __dirname + "/js/biomedical/landing/main.ts",
-      __dirname + "/css/biomedical/biomedical_landing.scss",
-    ],
-    disease: [
-      __dirname + "/js/biomedical/disease/disease.ts",
-      __dirname + "/css/biomedical/disease.scss",
-    ],
-    protein: [
-      __dirname + "/js/biomedical/protein/protein.ts",
-      __dirname + "/css/biomedical/protein.scss",
+    browser_landing: [
+      __dirname + "/js/apps/browser_landing/main.ts",
+      __dirname + "/css/browser_landing.scss",
     ],
     static: __dirname + "/css/static.scss",
-    screenshot: [
-      __dirname + "/js/apps/screenshot/main.ts",
-      __dirname + "/css/screenshot.scss",
-    ],
-    translator: [
-      __dirname + "/js/translator/translator.ts",
-      __dirname + "/css/translator.scss",
-    ],
     search: [
       __dirname + "/js/search/search.ts",
       __dirname + "/css/search.scss",
@@ -116,7 +114,20 @@ const config = {
       __dirname + "/js/import_wizard2/import_wizard.ts",
       __dirname + "/css/import_wizard2.scss",
     ],
+    about: [
+      __dirname + "/js/apps/about/main.ts",
+      __dirname + "/css/about.scss",
+    ],
     admin: [__dirname + "/js/admin/main.ts", __dirname + "/css/admin.scss"],
+    build: [
+      __dirname + "/js/apps/build/main.ts",
+      __dirname + "/css/build.scss",
+    ],
+    data: [__dirname + "/js/apps/data/main.ts"],
+    data_overview: [
+      __dirname + "/js/apps/data_overview/main.ts",
+      __dirname + "/css/data_overview.scss",
+    ],
     disaster_dashboard: [
       __dirname + "/js/apps/disaster_dashboard/main.ts",
       __dirname + "/css/disaster_dashboard.scss",
@@ -136,6 +147,10 @@ const config = {
     ],
     homepage_custom_dc: [
       __dirname + "/js/apps/homepage/main_custom_dc.ts",
+      __dirname + "/css/homepage.scss",
+    ],
+    techsoup_homepage_custom_dc: [
+      __dirname + "/js/apps/homepage/techsoup_custom_dc.ts",
       __dirname + "/css/homepage.scss",
     ],
     visualization: [
@@ -176,9 +191,20 @@ const config = {
           },
         ],
       },
+      {
+        test: /\.m?js/,
+        resolve: {
+          fullySpecified: false,
+        },
+      },
     ],
   },
   plugins: [
+    new webpack.DefinePlugin({
+      "process.env.IS_CLOUD_BUILD": JSON.stringify(
+        process.env.IS_CLOUD_BUILD || "false"
+      ),
+    }),
     new NodePolyfillPlugin(),
     new CopyPlugin({
       patterns: [
@@ -198,11 +224,42 @@ const config = {
   ],
 };
 
+// Outputs webpack build progress in a single terminal line (if in a TTY environment).
+const interactiveProgressHandler = (percentage, message, ...args) => {
+  readline.clearLine(process.stdout, 0);
+  readline.cursorTo(process.stdout, 0);
+  if (percentage === 1) {
+    // When compilation is done, add a marker and an empty line.
+    console.info("---------\n");
+  } else {
+    process.stdout.write(
+      `webpack: ${Math.round(percentage * 100)}% ${message} ${args.join(" ")}`
+    );
+  }
+};
+
+// Supported modes are "development" and "production".
 module.exports = (env, argv) => {
-  // If in development, disable optimization.minimize.
-  // development and production are arguments.
+  console.log(`#### Building webpack in ${argv.mode} mode`);
+
+  config.stats = {
+    preset: "minimal",
+    colors: true,
+    errorDetails: true,
+    logging: "warn",
+  };
+
+  // Add more logging and debugging options in development mode.
   if (argv.mode === "development") {
     config.devtool = "source-map";
+    config.stats.preset = "log";
+
+    if (process.env.IS_CLOUD_BUILD !== "true") {
+      // Only log progress outside of cloud where it's useful to see the build starting.
+      config.plugins.push(
+        new webpack.ProgressPlugin(interactiveProgressHandler)
+      );
+    }
   }
 
   return argv.mode === "development" ? config : smp.wrap(config);

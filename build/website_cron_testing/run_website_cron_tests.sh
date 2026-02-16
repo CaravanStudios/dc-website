@@ -41,7 +41,7 @@ if [[ $NODEJS_API_ROOT != "" ]]; then
   failure_email="failure_email.json"
   python3 differ.py -m diff -e "$TESTING_ENV" -t "$date_str" -g "$TESTING_ENV/$date_str/nodejs_query" -f "$failure_email"
   if [[ -e "$failure_email" ]]; then
-    python3 send_email.py --recipient="datacommons+alerts@google.com" --email_content="$failure_email"
+    python3 send_email.py --recipient="datacommons-alerts+tests@google.com" --email_content="$failure_email"
   fi
   echo "Finished the nodejs Test."
   echo "====================================================================================="
@@ -54,33 +54,17 @@ fi
 
 # Run sanity tests if ENABLE_SANITY is "true"
 if [[ $ENABLE_SANITY == "true" ]]; then
-echo "====================================================================================="
-echo "Starting sanity tests"
-echo "====================================================================================="
-python3 sanity.py --mode=home --url="$WEB_API_ROOT"
-gsutil cp ./output/*.csv gs://datcom-website-periodic-testing/$TESTING_ENV/$date_str/sanity/
-rm ./output/*.csv
-echo "Finished the sanity tests."
-echo "====================================================================================="
+  echo "====================================================================================="
+  echo "Starting sanity tests"
+  echo "====================================================================================="
+  python3 sanity.py --mode=home --url="$WEB_API_ROOT"
+  gsutil cp ./output/*.csv gs://datcom-website-periodic-testing/$TESTING_ENV/$date_str/sanity/
+  rm ./output/*.csv
+  echo "Finished the sanity tests."
+  echo "====================================================================================="
 else
   echo "====================================================================================="
   echo "Sanity tests disabled."
-  echo "====================================================================================="
-fi
-
-# Run screenshot tests if SCREENSHOT_DOMAIN is set
-if [[ $SCREENSHOT_DOMAIN != "" ]]; then
-  echo "====================================================================================="
-  echo "Starting screenshot tests on $SCREENSHOT_DOMAIN"
-  echo "====================================================================================="
-  python3 screenshot.py -d $SCREENSHOT_DOMAIN -u $WEB_API_ROOT
-  gsutil -o "GSUtil:parallel_process_count=1" -m cp ./screenshots/*.png ./screenshots/*.json gs://datcom-website-screenshot/$SCREENSHOT_DOMAIN/$date_str/
-  rm -rf ./screenshots/*
-  echo "Finished the screenshot tests."
-  echo "====================================================================================="
-else
-  echo "====================================================================================="
-  echo "Skipping screenshot tests because missing SCREENSHOT_DOMAIN"
   echo "====================================================================================="
 fi
 
@@ -92,8 +76,7 @@ if [[ $ENABLE_ADVERSARIAL == "true" ]]; then
   mkdir -p input
   gsutil cp gs://datcom-website-adversarial/input/frequent/* input/
   dc_list=("main" "sdg")
-  for dc in "${dc_list[@]}"
-  do
+  for dc in "${dc_list[@]}"; do
     echo "====================================================================================="
     echo "Executing the Adversarial Test against the $dc index, detection and fulfillment."
     python3 adversarial.py --mode=run_all --dc="$dc" --base_url="$WEB_API_ROOT"

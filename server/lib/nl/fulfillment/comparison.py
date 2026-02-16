@@ -15,15 +15,16 @@
 import copy
 from typing import List
 
-import server.lib.explore.existence as ext
-from server.lib.nl.common import constants
 from server.lib.nl.common.commentary import COMPARISON_MISSING_PLACE_MSG
+import server.lib.nl.common.existence_util as ext
 from server.lib.nl.common.utterance import ChartOriginType
 from server.lib.nl.common.utterance import ChartType
 from server.lib.nl.detection.types import Place
+from server.lib.nl.explore.params import Params
 from server.lib.nl.fulfillment.types import ChartVars
 from server.lib.nl.fulfillment.types import PopulateState
 from server.lib.nl.fulfillment.utils import add_chart_to_utterance
+from server.lib.nl.fulfillment.utils import get_max_ans_places
 from server.lib.nl.fulfillment.utils import get_places_as_string
 
 
@@ -55,6 +56,8 @@ def populate(state: PopulateState, chart_vars: ChartVars, places: List[Place],
     dcids = [p.dcid for p in places]
     state.uttr.counters.info('comparison_place_candidates', dcids)
 
+  chart_type = state.uttr.insight_ctx.get(Params.CHART_TYPE, '')
+
   found = False
   if not chart_vars.is_topic_peer_group:
     for i, sv in enumerate(chart_vars.svs):
@@ -74,7 +77,8 @@ def populate(state: PopulateState, chart_vars: ChartVars, places: List[Place],
       cv.svs = [sv]
       sv_place_latest_date = ext.get_sv_place_latest_date([sv], places, None,
                                                           state.exist_checks)
-      found |= add_chart_to_utterance(ChartType.BAR_CHART,
+      found |= add_chart_to_utterance(ChartType.from_string(chart_type)
+                                      if chart_type else ChartType.BAR_CHART,
                                       state,
                                       cv,
                                       exist_places,
@@ -119,7 +123,7 @@ def populate(state: PopulateState, chart_vars: ChartVars, places: List[Place],
 
   # If this is the top result, add to answer place.
   if rank == 0 and places:
-    ans_places = copy.deepcopy(places[:constants.MAX_ANSWER_PLACES])
+    ans_places = copy.deepcopy(get_max_ans_places(places, state.uttr))
     state.uttr.answerPlaces = ans_places
     state.uttr.counters.info('comparison_answer_places',
                              [p.dcid for p in ans_places])

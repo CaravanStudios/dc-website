@@ -17,6 +17,23 @@
 /**
  * Interface definitions supporting DataCommonsWebClient
  */
+
+/*
+  StatVarSpec has a corresponding interface in: static/js/shared/types.ts
+  When updating this interface, update its corresponding definition to match.
+ */
+export interface StatVarSpec {
+  statVar: string;
+  denom: string;
+  unit: string;
+  scaling: number;
+  log: boolean;
+  name?: string;
+  date?: string;
+  noPerCapita?: boolean;
+  facetId?: string;
+}
+
 export interface StatMetadata {
   importName?: string | null;
   provenanceUrl?: string | null;
@@ -144,3 +161,84 @@ export type ObservationDatesApiResponse = {
     };
   };
 };
+
+type ChartType = "BAR" | "LINE" | "MAP" | "RANKING" | "HIGHLIGHT";
+export interface Chart {
+  type: ChartType;
+  maxPlaces?: number;
+}
+
+export interface Place {
+  dcid: string;
+  name: string;
+  types: string[];
+}
+
+export interface BlockConfig {
+  charts: Chart[];
+  childPlaceType: string;
+  childPlaces: Place[];
+  nearbyPlaces: Place[];
+  place: Place;
+  similarPlaces: Place[];
+  placeScope?: string;
+  title: string;
+  category: string;
+  description: string;
+  statisticalVariableDcids: string[];
+  topicDcids: string[];
+  denominator?: string; // Optional
+  unit?: string; // Optional
+  scaling?: number; // Optional
+}
+
+export interface Category {
+  name: string;
+  translatedName: string;
+  hasMoreCharts: boolean;
+}
+
+/**
+ * Website API response for /api/place/charts/<place_dcid>
+ */
+export interface PlaceChartsApiResponse {
+  blocks: BlockConfig[];
+  place: Place;
+  categories: Category[];
+}
+
+/**
+ * Website API response for /api/place/related-places/<place_dcid>
+ */
+export interface RelatedPlacesApiResponse {
+  childPlaceType: string;
+  childPlaces: Place[];
+  nearbyPlaces: Place[];
+  place: Place;
+  similarPlaces: Place[];
+  parentPlaces: Place[];
+  peersWithinParent: string[];
+}
+
+export interface OverviewTableDataRow {
+  date: string;
+  name: string;
+  provenanceUrl: string;
+  value: number;
+  variableDcid: string;
+  unit?: string;
+}
+
+/**
+ * Website API response for /api/place/overview-table/<place_dcid>
+ */
+export interface PlaceOverviewTableApiResponse {
+  data: OverviewTableDataRow[];
+}
+
+/**
+ * Website API response for /api/place/summary/<place_dcid>
+ */
+export interface PlaceSummaryApiResponse {
+  summary: string;
+}

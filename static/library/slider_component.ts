@@ -20,6 +20,7 @@ import { css, CSSResult, html, LitElement, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { DATE_HIGHEST_COVERAGE, DATE_LATEST } from "../js/shared/constants";
+import { WEB_COMPONENT_SURFACE } from "./constants";
 import {
   convertArrayAttribute,
   convertBooleanAttribute,
@@ -54,22 +55,41 @@ interface ObservationDatesResponse {
  *
  * Example usage:
  *
- * <!-- Date slider example  -->
- * <datacommons-slider
- *      max="2023"
- *      min="1950"
- *      publish="dc-year"
- *      value="2023"
- * ></datacommons-slider>
- *
  * <!-- Map that subscribes to slider changes -->
  * <datacommons-map
- *      title="Population"
- *      place="country/USA"
- *      childPlaceType="State"
- *      subscribe="dc-map"
- *      variable="Count_Person"
- * ></datacommons-map>
+ *   childPlaceType="State"
+ *   date="HIGHEST_COVERAGE"
+ *   title="Population of US States (${date})"
+ *   place="country/USA"
+ *   subscribe="dc-map"
+ *   variable="Count_Person"
+ * >
+ *   <div slot="footer">
+ *     <datacommons-slider
+ *       parentPlace="country/USA"
+ *       childPlaceType="State"
+ *       publish="dc-map"
+ *       variable="Count_Person"
+ *     ></datacommons-slider>
+ *   </div>
+ * </datacommons-map>
+ *
+ * <!-- Bar chart that subscribes to slider changes -->
+ * <datacommons-bar
+ *   places="geoId/06 geoId/11 geoId/12"
+ *   date="HIGHEST_COVERAGE"
+ *   title="Life expectancy vs Median age in California, the District of Columbia, and Florida (${date})"
+ *   subscribe="dc-bar"
+ *   variables="LifeExpectancy_Person Median_Age_Person"
+ * >
+ *   <div slot="footer">
+ *     <datacommons-slider
+ *       places="geoId/06 geoId/11 geoId/12"
+ *       publish="dc-bar"
+ *       variables="LifeExpectancy_Person Median_Age_Person"
+ *     ></datacommons-slider>
+ *   </div>
+ * </datacommons-bar>
  */
 @customElement("datacommons-slider")
 export class DatacommonsSliderComponent extends LitElement {
@@ -224,6 +244,12 @@ export class DatacommonsSliderComponent extends LitElement {
   parentPlace: string;
 
   /**
+   * DCIDs of places
+   */
+  @property({ type: Array<string>, converter: convertArrayAttribute })
+  places?: string[];
+
+  /**
    * Event name to publish on slider change
    */
   @property()
@@ -246,6 +272,12 @@ export class DatacommonsSliderComponent extends LitElement {
    */
   @property()
   variable: string;
+
+  /**
+   * List of DCIDs of the statistical variable(s) to plot values for
+   */
+  @property({ type: Array<string>, converter: convertArrayAttribute })
+  variables?: string[];
 
   /**
    * Slider date range
@@ -295,6 +327,12 @@ export class DatacommonsSliderComponent extends LitElement {
   @state()
   private _value: number;
 
+  /**
+   * Flag to prevent self-triggering when dispatching events
+   */
+  @state()
+  private _isDispatching = false;
+
   connectedCallback(): void {
     super.connectedCallback();
     if (this.min && this.max) {
@@ -317,10 +355,107 @@ export class DatacommonsSliderComponent extends LitElement {
     }
     this._showTrendsSummaryEnabled = false;
     this.fetchObservationDates();
+
+    // Subscribe to events on the same channel
+    this.subscribeToEvents();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    // Clean up event listeners
+    this.unsubscribeFromEvents();
+  }
+
+  private subscribeToEvents(): void {
+    if (!this.publish) {
+      return;
+    }
+
+    // Listen for events on the same channel we publish to
+    document.addEventListener(
+      this.publish,
+      this.handleExternalEvent.bind(this)
+    );
+  }
+
+  private unsubscribeFromEvents(): void {
+    if (!this.publish) {
+      return;
+    }
+
+    document.removeEventListener(
+      this.publish,
+      this.handleExternalEvent.bind(this)
+    );
+  }
+
+  private handleExternalEvent(event: CustomEvent): void {
+    // Prevent self-triggering
+    if (this._isDispatching) {
+      return;
+    }
+
+    try {
+      // Validate event structure
+      if (!event.detail || typeof event.detail !== "object") {
+        console.warn(
+          `[datacommons-slider] Invalid event structure received on channel '${this.publish}':`,
+          event
+        );
+        return;
+      }
+
+      const { property, value } = event.detail;
+
+      // Only handle date property updates
+      if (property !== "date") {
+        return;
+      }
+
+      // Validate date value
+      if (typeof value !== "string" || !value) {
+        console.warn(
+          `[datacommons-slider] Invalid date value received:`,
+          value
+        );
+        return;
+      }
+
+      // Check if the date is within our available range
+      if (!this._dates || this._dates.length === 0) {
+        console.warn(
+          `[datacommons-slider] No dates available to validate against`
+        );
+        return;
+      }
+
+      const dateIndex = this._dates.indexOf(value);
+      if (dateIndex === -1) {
+        console.warn(
+          `[datacommons-slider] Date '${value}' is not in available range:`,
+          this._dates
+        );
+        return;
+      }
+
+      // Update the slider value
+      this._value = dateIndex;
+      this.requestUpdate();
+    } catch (error) {
+      console.error(
+        `[datacommons-slider] Error handling external event:`,
+        error
+      );
+    }
   }
 
   render(): TemplateResult {
-    if (!this.variable || !this.parentPlace || !this.childPlaceType) {
+    // Slider requires a variable and either parentPlace + childPlace type or a list of places
+    const isValid =
+      (this.variable || this.variables) &&
+      ((this.parentPlace && this.childPlaceType) || this.places);
+
+    if (!isValid) {
       return html`
         <div class="container error" part="container">
           <h4>datacommons-slider</h4>
@@ -352,7 +487,6 @@ export class DatacommonsSliderComponent extends LitElement {
         : (this._value / (this._dates.length - 1)) * 100;
 
     const dateText = this.getDateText();
-    const endDateText = this.getEndDateText();
     const lastDateIndex = this._dates.length - 1;
     const isHighestCoverageDate =
       dateText === this._highestCoverageDate && !this._showTrendsSummaryEnabled;
@@ -428,22 +562,15 @@ export class DatacommonsSliderComponent extends LitElement {
     `;
   }
 
-  private defaultHeader() {
+  private defaultHeader(): TemplateResult {
     return html`<h4 part="header">Explore trends over time</h4>`;
   }
 
-  private getDateText() {
+  private getDateText(): string {
     if (this._value < 0 || this._value >= this._dates.length) {
       return "Unknown";
     }
     return this._dates[this._value];
-  }
-
-  private getEndDateText() {
-    if (this._dates.length === 0) {
-      return "Unknown";
-    }
-    return this._dates[this._dates.length - 1];
   }
 
   private onSliderChange(e: Event): void {
@@ -452,6 +579,8 @@ export class DatacommonsSliderComponent extends LitElement {
     this._value = newValue;
     const dateValue =
       this._value < this._dates.length ? this._dates[this._value] : undefined;
+
+    this._isDispatching = true;
     this.dispatchEvent(
       new CustomEvent<ChartEventDetail>(this.publish, {
         bubbles: true,
@@ -461,6 +590,7 @@ export class DatacommonsSliderComponent extends LitElement {
         },
       })
     );
+    this._isDispatching = false;
   }
 
   private onSliderInput(e: Event): void {
@@ -477,6 +607,8 @@ export class DatacommonsSliderComponent extends LitElement {
     const dispatchedDateValue = this._showTrendsSummaryEnabled
       ? DATE_LATEST
       : dateValue;
+
+    this._isDispatching = true;
     this.dispatchEvent(
       new CustomEvent<ChartEventDetail>(this.publish, {
         bubbles: true,
@@ -486,21 +618,41 @@ export class DatacommonsSliderComponent extends LitElement {
         },
       })
     );
+    this._isDispatching = false;
   }
 
-  private async fetchObservationDates() {
+  private async fetchObservationDates(): Promise<void> {
     const apiRoot = getApiRoot(this.apiRoot);
-    const dataCommonsWebClient = new DataCommonsWebClient({ apiRoot });
-    const apiPath = "api/observation-dates";
-    if (!this.parentPlace || !this.childPlaceType || !this.variable) {
+    const dataCommonsWebClient = new DataCommonsWebClient({
+      apiRoot,
+      surface: WEB_COMPONENT_SURFACE,
+    });
+    if (
+      (!this.places && (!this.parentPlace || !this.childPlaceType)) ||
+      (!this.variable && !this.variables)
+    ) {
       console.log("No place found in the slider");
       return;
     }
+    const variables = this.variable ? [this.variable] : this.variables;
+    const firstVariable = variables[0];
+    const apiPath = this.places
+      ? "api/observation-dates/entities"
+      : "api/observation-dates";
     this._isLoading = true;
     const params = new URLSearchParams();
-    params.set("parentEntity", this.parentPlace);
-    params.set("childType", this.childPlaceType);
-    params.set("variable", this.variable);
+    if (this.parentPlace && this.childPlaceType) {
+      params.set("parentEntity", this.parentPlace);
+      params.set("childType", this.childPlaceType);
+    } else {
+      this.places.forEach((place) => params.append("entities", place));
+    }
+
+    if (this.places) {
+      variables.forEach((variable) => params.append("variables", variable));
+    } else {
+      params.set("variable", firstVariable);
+    }
 
     const url = `${apiRoot}/${apiPath}?${params.toString()}`;
     const result = await fetch(url);
@@ -508,31 +660,41 @@ export class DatacommonsSliderComponent extends LitElement {
     this._isLoading = false;
 
     if (this.showTrendsSummary) {
-      const trendsSummaryResult =
-        await dataCommonsWebClient.getObservationsPointWithin({
-          parentEntity: this.parentPlace,
-          childType: this.childPlaceType,
-          variables: [this.variable],
-          date: DATE_LATEST,
-        });
+      const trendsSummaryResult = this.places
+        ? await dataCommonsWebClient.getObservationsPoint({
+            entities: this.places,
+            variables,
+            date: DATE_LATEST,
+          })
+        : await dataCommonsWebClient.getObservationsPointWithin({
+            parentEntity: this.parentPlace,
+            childType: this.childPlaceType,
+            variables,
+            date: DATE_LATEST,
+          });
       const { minDate, maxDate } = getObservationDateRange(trendsSummaryResult);
       this._trendSummaryMinDate = minDate;
       this._trendSummaryMaxDate = maxDate;
     }
-    const highestCoverageResult =
-      await dataCommonsWebClient.getObservationsPointWithin({
-        parentEntity: this.parentPlace,
-        childType: this.childPlaceType,
-        variables: [this.variable],
-        date: DATE_HIGHEST_COVERAGE,
-      });
+    const highestCoverageResult = this.places
+      ? await await dataCommonsWebClient.getObservationsPoint({
+          entities: this.places,
+          variables,
+          date: DATE_HIGHEST_COVERAGE,
+        })
+      : await dataCommonsWebClient.getObservationsPointWithin({
+          parentEntity: this.parentPlace,
+          childType: this.childPlaceType,
+          variables,
+          date: DATE_HIGHEST_COVERAGE,
+        });
     this._highestCoverageDate = "";
     const highestCoveragePlaces = Object.keys(
-      highestCoverageResult.data[this.variable]
+      highestCoverageResult.data[firstVariable]
     );
     if (highestCoveragePlaces.length > 0) {
       this._highestCoverageDate =
-        highestCoverageResult.data[this.variable][
+        highestCoverageResult.data[firstVariable][
           highestCoveragePlaces[0]
         ].date;
     }
@@ -545,7 +707,7 @@ export class DatacommonsSliderComponent extends LitElement {
         (od) => od.date
       );
     } else {
-      this._errorMessage = `No date range found for (variable: ${this.variable},  parentPlace: ${this.parentPlace}, childPlaceType: ${this.childPlaceType})`;
+      this._errorMessage = `No date range found for (variable: ${firstVariable},  parentPlace: ${this.parentPlace}, childPlaceType: ${this.childPlaceType})`;
     }
 
     if (this._highestCoverageDate) {

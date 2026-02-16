@@ -18,15 +18,17 @@ import React from "react";
 import ReactDOM from "react-dom";
 
 import { loadLocaleData } from "../../i18n/i18n";
+import { getLocaleFromUrl } from "../../utils/url_utils";
 import { AppWithContext } from "./app";
 
-window.onload = () => {
-  loadLocaleData("en", [import("../../i18n/compiled-lang/en/units.json")]).then(
-    () => {
-      ReactDOM.render(
-        React.createElement(AppWithContext),
-        document.getElementById("main-pane")
-      );
-    }
-  );
-};
+window.addEventListener("load", (): void => {
+  const locale = getLocaleFromUrl();
+  loadLocaleData(locale, [
+    import(`../../i18n/compiled-lang/${locale}/units.json`),
+  ]).then(() => {
+    ReactDOM.render(
+      React.createElement(AppWithContext),
+      document.getElementById("main-pane")
+    );
+  });
+});

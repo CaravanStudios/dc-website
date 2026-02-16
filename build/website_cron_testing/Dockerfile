@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM gcr.io/datcom-ci/webdriver-chrome:2023-12-11
+FROM gcr.io/datcom-ci/webdriver-chrome:2025-01-15
 
 WORKDIR /resources
 
@@ -32,15 +32,6 @@ COPY server/integration_tests/standalone/adversarial.py .
 
 # Copy scripts for sanity tests
 COPY server/webdriver/tests/standalone/sanity.py .
-
-# Copy scripts and make folders needed for screenshot tests
-COPY server/webdriver/screenshot/remote/main.py screenshot.py
-# Screenshot test requires other files from the webdriver folder so copy
-# the whole folder over
-COPY server/webdriver/. server/webdriver/
-# Screenshot tests save screenshots to a folder called screenshots so add
-# this folder
-RUN mkdir screenshots
 
 # Copy and make executable the script for running all the tests
 COPY build/website_cron_testing/run_website_cron_tests.sh .

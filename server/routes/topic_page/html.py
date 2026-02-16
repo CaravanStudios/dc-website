@@ -100,7 +100,9 @@ def topic_page(topic_id=None, place_dcid=None):
       topic_id=topic_id,
       topic_name=topic_configs[0].metadata.topic_name or "",
       page_config={},
-      topics_summary=topics_summary)
+      topics_summary=topics_summary,
+        sample_questions=json.dumps(
+            current_app.config.get('HOMEPAGE_SAMPLE_QUESTIONS', [])))
 
   more_places = request.args.getlist('places')
 
@@ -169,7 +171,9 @@ def topic_page(topic_id=None, place_dcid=None):
     topic_id=topic_id,
     topic_name=topic_place_config.metadata.topic_name or "",
     page_config=MessageToJson(topic_place_config),
-    topics_summary=topics_summary,
+    sample_questions=json.dumps(
+          current_app.config.get('HOMEPAGE_SAMPLE_QUESTIONS', [])),
+      topics_summary=topics_summary,
     show_child_places=json.dumps(show_child_places),
     place_children=json.dumps(place_children),
     display_searchbar=json.dumps(display_searchbar),

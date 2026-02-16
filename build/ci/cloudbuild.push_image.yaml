@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Manual Cloud Build pipeline for building and pushing images to GCR.
+# Trigger this manually (e.g., via /scripts/push_image.sh) for development deployments or testing custom images.
+# This is NOT used by the official CI/CD pipeline nor any automated triggers.
+
 steps:
   - id: push-web-server
     name: gcr.io/cloud-builders/docker
@@ -24,7 +28,7 @@ steps:
         docker build -f build/web_server/Dockerfile --tag gcr.io/$_PROJECT_ID/datacommons-website:${_TAG} .
         docker push gcr.io/$_PROJECT_ID/datacommons-website:${_TAG}
 
-  - id: push-web-compose
+  - id: push-cdc-services
     name: gcr.io/cloud-builders/docker
     entrypoint: "bash"
     args:
@@ -33,12 +37,12 @@ steps:
         set -e
         DOCKER_BUILDKIT=1
         # Bundle container with website, esp and mixer.
-        docker build -f build/web_compose/Dockerfile \
-          --tag gcr.io/$_PROJECT_ID/datacommons-website-compose:${_TAG} \
-          --tag gcr.io/$_PROJECT_ID/datacommons-website-compose:latest \
+        docker build -f build/cdc_services/Dockerfile \
+          --tag gcr.io/$_PROJECT_ID/datacommons-services:${_TAG} \
+          --tag gcr.io/$_PROJECT_ID/datacommons-services:latest \
           .
-        docker push gcr.io/$_PROJECT_ID/datacommons-website-compose:${_TAG}
-        docker push gcr.io/$_PROJECT_ID/datacommons-website-compose:latest
+        docker push gcr.io/$_PROJECT_ID/datacommons-services:${_TAG}
+        docker push gcr.io/$_PROJECT_ID/datacommons-services:latest
     waitFor: ["-"]
 
   - id: push-nl-server

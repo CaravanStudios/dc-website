@@ -14,33 +14,22 @@
 
 # Run integration tests for NL
 steps:
-  - id: setup_python
-    name: python:3.11.3
-    entrypoint: /bin/bash
-    waitFor: ["-"]
-    args:
-      - -c
-      - |
-        ./run_test.sh --setup_python
-
-  - id: explore_test
+  - id: explore_tests
     name: python:3.11.3
     entrypoint: /bin/sh
-    waitFor:
-      - setup_python
     args:
       - -c
       - |
+        pip install uv
         ./run_test.sh --explore
 
-  - id: nl_test
+  - id: nl_tests
     name: python:3.11.3
     entrypoint: /bin/sh
-    waitFor:
-      - setup_python
     args:
       - -c
       - |
+        pip install uv
         ./run_test.sh --nl
 
 options:

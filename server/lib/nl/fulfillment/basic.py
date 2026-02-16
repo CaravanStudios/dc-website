@@ -15,12 +15,13 @@
 import copy
 from typing import List
 
-from server.lib.explore import params
 from server.lib.nl.common.constants import PROJECTED_TEMP_TOPIC
 from server.lib.nl.common.utterance import ChartOriginType
+from server.lib.nl.common.utterance import ChartType
 from server.lib.nl.detection.types import ContainedInPlaceType
 from server.lib.nl.detection.types import Place
 from server.lib.nl.detection.types import RankingType
+from server.lib.nl.explore import params
 from server.lib.nl.fulfillment import containedin
 from server.lib.nl.fulfillment import ranking_across_places
 from server.lib.nl.fulfillment import ranking_across_vars
@@ -41,7 +42,6 @@ _PLACE_TYPE_FALLBACK_THRESHOLD_RANK = 5
 
 #
 # NOTE: basic is a layer on topic of simple, containedin, ranking_across_places and ranking_across_vars
-# The choice of the charts to show depends on the `explore_mode`
 #
 
 
@@ -64,16 +64,27 @@ def populate(state: PopulateState, chart_vars: ChartVars, places: List[Place],
                             [p.dcid for p in places])
     return False
 
-  if state.explore_mode and chart_vars.source_topic != PROJECTED_TEMP_TOPIC:
-    return _populate_explore(state, chart_vars, places, chart_origin, rank)
+  if chart_vars.source_topic == PROJECTED_TEMP_TOPIC:
+    # PROJECTED_TEMP_TOPIC has some very custom handling in config-builder,
+    # that needs to be deprecated.
+    # TODO: Deprecate this flow completely!
+    return _populate_specific(state, chart_vars, places, chart_origin, rank)
   else:
-    return _populate_chat(state, chart_vars, places, chart_origin, rank)
+    return _populate_explore(state, chart_vars, places, chart_origin, rank)
 
 
 def _populate_explore(state: PopulateState, chart_vars: ChartVars,
                       places: List[Place], chart_origin: ChartOriginType,
                       rank: int) -> bool:
   added = False
+  # TODO(gmechali): Consider making is_chart_injection a part of the utterance.
+  # We use the chart type parameter as a proxy to determine if a specific chart
+  # was requested, and should be used as the highlight chart. On highlight chart
+  # cases, we don't want to show any other chart.
+  chart_type = state.uttr.insight_ctx.get(params.Params.CHART_TYPE)
+  is_chart_injection = bool(chart_type) if chart_type else False
+  is_map_with_ranking_highlight = ChartType.from_string(
+      chart_type) == ChartType.RANKING_WITH_MAP if is_chart_injection else False
 
   # For peer-groups, add multi-line charts.
   max_rank_and_map_charts = _get_max_rank_and_map_charts(chart_vars, state)
@@ -100,7 +111,12 @@ def _populate_explore(state: PopulateState, chart_vars: ChartVars,
     if state.place_type:
       # If this is SDG, unless user has asked for ranking, do not return!
       added_child_type_charts = False
-      if not is_special_dc or state.ranking_types:
+
+      # TODO(gmechali): Refactor this code for more explicit logic.
+      # The is_chart_injection check is to avoid showing the related contained-in
+      # chart when the user has asked for a specific chart.
+      if is_map_with_ranking_highlight or state.ranking_types or (
+          not is_chart_injection and not is_special_dc):
         ranking_orig = state.ranking_types
         if not state.ranking_types:
           state.ranking_types = [RankingType.HIGH, RankingType.LOW]
@@ -133,9 +149,9 @@ def _populate_explore(state: PopulateState, chart_vars: ChartVars,
   return added
 
 
-def _populate_chat(state: PopulateState, chart_vars: ChartVars,
-                   places: List[Place], chart_origin: ChartOriginType,
-                   rank: int) -> bool:
+def _populate_specific(state: PopulateState, chart_vars: ChartVars,
+                       places: List[Place], chart_origin: ChartOriginType,
+                       rank: int) -> bool:
   if state.ranking_types:
     # Ranking query
     if state.place_type:

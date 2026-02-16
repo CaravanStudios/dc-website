@@ -1,0 +1,172 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Official CI/CD pipeline for building and pushing release images to GCR.
+# Triggered automatically on every push to the master branch.
+# DO NOT trigger this manually. Manual runs will tag images with official release tags (autopush) and trigger downstream deployment builds.
+
+steps:
+  # Trigger downstream builds that listen for changes to multiple repos.
+  - id: update-repo-version
+    name: "gcr.io/cloud-builders/git"
+    entrypoint: /bin/bash
+    args:
+      - -c
+      - |
+        set -e
+        gcloud source repos clone deployment /tmp/deployment --project=datcom-ci
+        cd /tmp/deployment
+        ./scripts/update_external_repo_version.sh $REPO_NAME $SHORT_SHA
+    waitFor: ["-"]
+
+  - id: push-web-server
+    name: gcr.io/cloud-builders/docker
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        set -e
+        echo "Starting web server build at $(date)"
+        start_time=$(date +%s)
+
+        docker build -f build/web_server/Dockerfile \
+          -t gcr.io/datcom-ci/datacommons-website:$SHORT_SHA \
+          -t gcr.io/datcom-ci/datacommons-website:latest \
+          -t gcr.io/datcom-ci/datacommons-website:cicd \
+          .
+        build_end_time=$(date +%s)
+        build_duration=$((build_end_time - start_time))
+        echo "Web server build completed at $(date). Build took ${build_duration} seconds"
+
+        echo "Starting web server image push at $(date)"
+        docker push gcr.io/datcom-ci/datacommons-website:$SHORT_SHA
+        docker push gcr.io/datcom-ci/datacommons-website:latest
+        docker push gcr.io/datcom-ci/datacommons-website:cicd
+        push_end_time=$(date +%s)
+        push_duration=$((push_end_time - build_end_time))
+        total_duration=$((push_end_time - start_time))
+        echo "Web server image push completed at $(date). Push took ${push_duration} seconds"
+        echo "Total time: ${total_duration} seconds"
+    waitFor: ["-"]
+
+  - id: push-nl-server
+    name: gcr.io/cloud-builders/docker
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        set -e
+        docker build -f build/nl_server/Dockerfile \
+          -t gcr.io/datcom-ci/datacommons-nl:$SHORT_SHA \
+          -t gcr.io/datcom-ci/datacommons-nl:latest \
+          -t gcr.io/datcom-ci/datacommons-nl:cicd \
+          .
+        docker push gcr.io/datcom-ci/datacommons-nl:$SHORT_SHA
+        docker push gcr.io/datcom-ci/datacommons-nl:latest
+        docker push gcr.io/datcom-ci/datacommons-nl:cicd
+    waitFor: ["-"]
+
+  - id: push-datacommons-script-runner
+    name: gcr.io/cloud-builders/docker
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        set -e
+        # The datacommons-script-runner image needs git to be installed to fetch
+        # the submodules.
+        apt-get update && apt-get install -y git
+        git submodule update --init --recursive
+
+        docker build -f tools/script_runner/Dockerfile \
+          -t gcr.io/datcom-ci/datacommons-script-runner:$SHORT_SHA \
+          -t gcr.io/datcom-ci/datacommons-script-runner:latest \
+          -t gcr.io/datcom-ci/datacommons-script-runner:cicd \
+          .
+        docker push gcr.io/datcom-ci/datacommons-script-runner:$SHORT_SHA
+        docker push gcr.io/datcom-ci/datacommons-script-runner:latest
+        docker push gcr.io/datcom-ci/datacommons-script-runner:cicd
+    waitFor: ["-"]
+
+  - id: push-nodejs-server
+    name: gcr.io/cloud-builders/docker
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        set -e
+        docker build -f build/nodejs_server/Dockerfile \
+          -t gcr.io/datcom-ci/datacommons-nodejs:$SHORT_SHA \
+          -t gcr.io/datcom-ci/datacommons-nodejs:latest \
+          -t gcr.io/datcom-ci/datacommons-nodejs:cicd \
+          .
+        docker push gcr.io/datcom-ci/datacommons-nodejs:$SHORT_SHA
+        docker push gcr.io/datcom-ci/datacommons-nodejs:latest
+        docker push gcr.io/datcom-ci/datacommons-nodejs:cicd
+    waitFor: ["-"]
+
+  - id: push-website-cron-testing
+    name: gcr.io/cloud-builders/docker
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        set -e
+        docker build -f build/website_cron_testing/Dockerfile \
+          -t gcr.io/datcom-ci/website-cron-testing:$SHORT_SHA \
+          -t gcr.io/datcom-ci/website-cron-testing:latest \
+          -t gcr.io/datcom-ci/website-cron-testing:cicd \
+          .
+        docker push gcr.io/datcom-ci/website-cron-testing:$SHORT_SHA
+        docker push gcr.io/datcom-ci/website-cron-testing:latest
+        docker push gcr.io/datcom-ci/website-cron-testing:cicd
+    waitFor: ["-"]
+
+  # Trigger website autopush deployment by bumping the website autopush version
+  # file after new images are pushed. This step is separate from the repo
+  # version bump because it needs to wait for steps that create new images.
+  - id: update-autopush-version
+    name: "gcr.io/cloud-builders/git"
+    entrypoint: /bin/bash
+    args:
+      - -c
+      - |
+        set -e
+
+        gcloud source repos clone deployment /tmp/deployment --project=datcom-ci
+        cd /tmp/deployment
+        # Configure Git to create commits with Cloud Build's service account
+        git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
+        git checkout master
+        echo $SHORT_SHA > website/autopush/commit_hash.txt
+        git add website/autopush/commit_hash.txt
+        git commit -m "Deployed website to autopush at commit https://github.com/datacommonsorg/website/commit/$SHORT_SHA"
+        git push origin master
+
+  # Publish a message to Pub/Sub to notify that the website image has been pushed.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - pubsub
+      - topics
+      - publish
+      - website-image-pushed
+      - --project=datcom-ci
+      - --message=${SHORT_SHA}
+    waitFor: ["push-web-server", "push-nl-server", "push-nodejs-server", "push-datacommons-script-runner"]
+
+timeout: 3600s
+
+options:
+  machineType: "E2_HIGHCPU_32"

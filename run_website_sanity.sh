@@ -12,26 +12,61 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Description:
+#   Runs the python sanity test: server/webdriver/tests/standalone/sanity.py
+#   Outputs are written to: [datcom-website-dev] gs://datcom-website-sanity/<domain>/<timestamp>/
+#
+# Usage: ./run_website_sanity.sh <domain> [NO_PIP]
+#
+# Arguments:
+#   <domain>: The DC instance domain to test (e.g., "autopush.datacommons.org", "datacommons.org").
+#             The script will prepend https:// if missing.
+#   [NO_PIP]: Optional. Set to "true" to skip installing python dependencies.
+#
+# Example:
+#   ./run_website_sanity.sh autopush.datacommons.org
+
 
 set -e
 
 # DC Instance domain like: "dev.datacommons.org", "datacommons.org"
 domain=$1
+# Check if the domain is set
+if [[ -z "$domain" ]]; then
+  echo "Error: Domain is not set."
+  echo "Usage: $0 <domain> [NO_PIP]"
+  echo "Example: $0 autopush.datacommons.org"
+  exit 1
+fi
+
+# Prepend https:// if no protocol is specified
+if [[ ! "$domain" =~ ^http:// && ! "$domain" =~ ^https:// ]]; then
+  domain="https://$domain"
+fi
+
 echo "Domain: $domain"
 
+# Set to true if you don't want to install the dependencies
 NO_PIP=$2
 
 export FLASK_ENV=webdriver
 export GOOGLE_CLOUD_PROJECT=datcom-website-dev
 
-python3 -m venv .env
-source .env/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 if [[ $NO_PIP != "true" ]]; then
   python3 -m pip install --upgrade pip setuptools
   pip3 install -r server/requirements.txt
 fi
 
+# Clean up any potential previous output
+rm -f ./output/*.csv
+
 date_str=$(TZ="America/Los_Angeles" date +"%Y_%m_%d_%H_%M_%S")
-python3 server/webdriver/tests/standalone/sanity.py --mode=home --url="https://$domain"
-gsutil cp ./output/*.csv gs://datcom-website-sanity/$domain/$date_str/
+# Clean domain for GCS path (remove protocol and trailing slash)
+clean_domain=$(echo "$domain" | sed -E 's|https?://||; s|/$||')
+
+python3 server/webdriver/tests/standalone/sanity.py --mode=home --url="$domain"
+gsutil cp ./output/*.csv gs://datcom-website-sanity/$clean_domain/$date_str/
 rm ./output/*.csv

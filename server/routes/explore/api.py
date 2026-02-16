@@ -14,6 +14,7 @@
 """Endpoints for Datacommons NL"""
 
 import copy
+import json
 import time
 from typing import Dict
 
@@ -21,12 +22,11 @@ import flask
 from flask import Blueprint
 from flask import current_app
 from flask import request
+from flask import Response
 
-import server.lib.explore.fulfiller_bridge as nl_fulfillment
-from server.lib.explore.params import Clients
-from server.lib.explore.params import DCNames
-from server.lib.explore.params import Params
+from server.lib.cache import cache
 from server.lib.nl.common import serialize
+import server.lib.nl.common.bad_words as bad_words
 import server.lib.nl.common.constants as constants
 import server.lib.nl.common.counters as ctr
 import server.lib.nl.common.utils as utils
@@ -34,8 +34,17 @@ import server.lib.nl.common.utterance as nl_utterance
 import server.lib.nl.config_builder.base as config_builder
 import server.lib.nl.detection.detector as nl_detector
 from server.lib.nl.detection.utils import create_utterance
+from server.lib.nl.explore import overview
+from server.lib.nl.explore import related
+import server.lib.nl.explore.fulfiller_bridge as nl_fulfillment
+from server.lib.nl.explore.params import Clients
+from server.lib.nl.explore.params import DCNames
+from server.lib.nl.explore.params import Params
 from server.lib.util import get_nl_disaster_config
-from server.routes.nl import helpers
+from server.lib.util import post_body_cache_key
+from server.routes import TIMEOUT
+from server.routes.explore import helpers
+import server.services.bigtable as bt
 
 bp = Blueprint('explore_api', __name__, url_prefix='/api/explore')
 
@@ -76,8 +85,10 @@ def detect():
 #
 # POST request should contain:
 #  - entities: An ordered list of places or other entity DCIDs.
-#  - variables: A ordered list of SV or topic (dc/topic/..) DCIDs.
+#  - variables: An ordered list of SV or topic (dc/topic/..) DCIDs.
 #  - childEntityType: A type of child entity (optional)
+#  - An "x-surface" header indicating which DC surface (website,
+#   MCP server, etc) the request is coming from.
 #
 @bp.route('/fulfill', methods=['POST'])
 def fulfill():
@@ -116,7 +127,9 @@ def detect_and_fulfill():
   utterance.insight_ctx[
       Params.EXP_MORE_DISABLED.value] = request.get_json().get(
           Params.EXP_MORE_DISABLED, "")
-  utterance.insight_ctx[Params.DC.value] = dc_name
+  utterance.insight_ctx[Params.SKIP_RELATED_THINGS] = request.args.get(
+      Params.SKIP_RELATED_THINGS.value, '') == 'true'
+  helpers.update_insight_ctx_for_chart_fulfill(request, utterance, dc_name)
 
   # Important to setup utterance for explore flow (this is really the only difference
   # between NL and Explore).
@@ -125,6 +138,82 @@ def detect_and_fulfill():
   utterance.counters.timeit('setup_for_explore', start)
 
   return _fulfill_with_chart_config(utterance, debug_logs)
+
+
+#
+# The follow up question endpoint that generates questions
+# based off of the initial query and topics found in the related topics.
+#
+@bp.route('/follow-up-questions', methods=['POST'])
+@cache.cached(timeout=TIMEOUT, make_cache_key=post_body_cache_key)
+def follow_up_questions():
+
+  initial_query = request.get_json().get('q', '')
+  related_topics = request.get_json().get('relatedTopics', [])
+
+  if not initial_query:
+    return Response(json.dumps({'error': 'Missing query in request.'}),
+                    400,
+                    mimetype="application/json")
+  if not related_topics:
+    return Response(json.dumps({'error': 'Missing related topics in request.'}),
+                    400,
+                    mimetype="application/json")
+
+  generated_questions = related.generate_follow_up_questions(
+      query=initial_query, related_topics=related_topics)
+
+  # Checks for adversarial questions
+  safe_generated_questions = [
+      question for question in generated_questions
+      if bad_words.is_safe(query=question,
+                           bad_words=current_app.config['NL_BAD_WORDS'])
+  ]
+
+  return Response(json.dumps({'follow_up_questions': safe_generated_questions}),
+                  200,
+                  mimetype="application/json")
+
+
+# The page overview endpoint that generates an introductory paragraph
+# based off of the initial query and relevant statistical variables.
+#
+@bp.route('/page-overview', methods=['POST'])
+@cache.cached(timeout=TIMEOUT, make_cache_key=post_body_cache_key)
+def page_overview():
+
+  initial_query = request.get_json().get('q', '')
+  stat_vars = request.get_json().get('statVars', [])
+
+  if not initial_query:
+    return Response(json.dumps({'error': 'Missing query in request.'}),
+                    400,
+                    mimetype="application/json")
+  if not stat_vars:
+    return Response(json.dumps(
+        {'error': 'Missing statistical variables in request.'}),
+                    400,
+                    mimetype="application/json")
+
+  generated_overview, stat_var_links = overview.generate_page_overview(
+      query=initial_query, stat_var_titles=stat_vars)
+
+  if not generated_overview or not stat_var_links:
+    return Response(json.dumps(
+        {'error': "Page overview could not be generated at this time."}),
+                    503,
+                    mimetype="application/json")
+
+  return Response(json.dumps({
+      'pageOverview':
+          generated_overview,
+      'statVarChartLinks': [
+          stat_var_link.model_dump(by_alias=True)
+          for stat_var_link in stat_var_links
+      ]
+  }),
+                  200,
+                  mimetype="application/json")
 
 
 #
@@ -220,5 +309,5 @@ def _fulfill_with_insight_ctx(request: Dict, debug_logs: Dict,
                                client=client,
                                mode=mode)
   utterance.insight_ctx = insight_ctx
-  utterance.insight_ctx[Params.DC.value] = dc_name
+  helpers.update_insight_ctx_for_chart_fulfill(request, utterance, dc_name)
   return _fulfill_with_chart_config(utterance, debug_logs)

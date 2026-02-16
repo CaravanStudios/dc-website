@@ -15,6 +15,7 @@
  */
 import axios from "axios";
 
+import { WEBSITE_SURFACE_HEADER } from "../../shared/constants";
 import { PointApiResponse } from "../../shared/stat_types";
 import { saveToFile } from "../../shared/util";
 import { stringifyFn } from "../../utils/axios";
@@ -57,6 +58,7 @@ function downloadBulkData(
             variables: statVars,
           },
           paramsSerializer: stringifyFn,
+          headers: WEBSITE_SURFACE_HEADER,
         })
         .then((resp) => {
           if (resp.data && resp.data.data) {
@@ -101,7 +103,7 @@ function saveToCsv(
   saveToFile("datacommons_data.csv", csv);
 }
 
-window.onload = function () {
+window.addEventListener("load", (): void => {
   const statVars = Array.from(getTokensFromUrl("statsVar", "__"));
   const statVarDisplay = document.getElementById("statVars");
   statVarDisplay.innerText = statVars.join(", ");
@@ -114,4 +116,4 @@ window.onload = function () {
       downloadBulkData(statVars, ptype, "country/USA");
     });
   }
-};
+});

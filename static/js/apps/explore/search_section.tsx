@@ -29,10 +29,10 @@ import {
   GA_EVENT_NL_SEARCH,
   GA_PARAM_QUERY,
   GA_PARAM_SOURCE,
-  GA_VALUE_SEARCH_SOURCE_EXPLORE,
+  GA_VALUE_PAGE_EXPLORE,
   triggerGAEvent,
 } from "../../shared/ga_events";
-import { getFeedbackLink } from "../../utils/nl_interface_utils";
+import { getFeedbackLink } from "../../utils/explore_utils";
 import { updateHash } from "../../utils/url_utils";
 
 // TODO (juliawu): Extract this out to a global flag we can set to remove
@@ -57,10 +57,10 @@ export function SearchSection(props: {
   return (
     <NlSearchBar
       inputId="query-search-input"
-      onSearch={(q) => {
+      onSearch={(q): void => {
         triggerGAEvent(GA_EVENT_NL_SEARCH, {
           [GA_PARAM_QUERY]: q,
-          [GA_PARAM_SOURCE]: GA_VALUE_SEARCH_SOURCE_EXPLORE,
+          [GA_PARAM_SOURCE]: GA_VALUE_PAGE_EXPLORE,
         });
         updateHash({
           [URL_HASH_PARAMS.QUERY]: q,
@@ -69,7 +69,6 @@ export function SearchSection(props: {
           [URL_HASH_PARAMS.CLIENT]: CLIENT_TYPES.QUERY,
         });
       }}
-      placeholder={props.query}
       initialValue={props.query}
       shouldAutoFocus={false}
       feedbackLink={DEVELOPER_MODE ? feedbackLink : undefined}

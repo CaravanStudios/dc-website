@@ -23,14 +23,18 @@ import { getPlaceDcids } from "../utils/place_utils";
 import { Chip } from "./chip";
 
 // Hardcoded results to respond to in the place autocomplete.
+const NORTH_AMERICA_DCID = "northamerica";
+const SOUTH_AMERICA_DCID = "southamerica";
 const HARDCODED_RESULTS = {
   africa: "africa",
   asia: "asia",
   earth: "Earth",
   europe: "europe",
-  "north america": "northamerica",
+  "north america": NORTH_AMERICA_DCID,
+  northamerica: NORTH_AMERICA_DCID,
   oceania: "oceania",
-  "south america": "southamerica",
+  "south america": SOUTH_AMERICA_DCID,
+  southamerica: SOUTH_AMERICA_DCID,
 };
 const CHIP_COLOR = "rgba(66, 133, 244, 0.08)";
 
@@ -67,22 +71,24 @@ class PlaceSearchBar extends Component<PlaceSearchBarPropType> {
         >
           <div id="search-icon"></div>
           <span id="prompt">Find : </span>
-          <span id="place-list">
-            {placeIds.map((placeId) => (
-              <Chip
-                id={placeId}
-                title={
-                  this.props.places[placeId]
-                    ? this.props.places[placeId]
-                    : placeId
-                }
-                key={placeId}
-                removeChip={this.props.removePlace}
-                color={CHIP_COLOR}
-              ></Chip>
-            ))}
-          </span>
-          <input ref={this.inputElem} id="ac" type="text" />
+          <div id="place-list-container">
+            <span id="place-list">
+              {placeIds.map((placeId) => (
+                <Chip
+                  id={placeId}
+                  title={
+                    this.props.places[placeId]
+                      ? this.props.places[placeId]
+                      : placeId
+                  }
+                  key={placeId}
+                  removeChip={this.props.removePlace}
+                  color={CHIP_COLOR}
+                ></Chip>
+              ))}
+            </span>
+            <input ref={this.inputElem} id="ac" type="text" />
+          </div>
           {!hideInput && <i className="material-icons search-icon">search</i>}
           <span id="place-name"></span>
         </div>
@@ -102,7 +108,7 @@ class PlaceSearchBar extends Component<PlaceSearchBarPropType> {
         country: this.props.countryRestrictions,
       };
     }
-    if (google.maps) {
+    if (google.maps?.places) {
       this.ac = new google.maps.places.Autocomplete(
         this.inputElem.current,
         options
@@ -112,7 +118,7 @@ class PlaceSearchBar extends Component<PlaceSearchBarPropType> {
           this.getPlaceAndRender(customPlace)
         )
       );
-      this.ac.addListener("place_changed", (e) => this.getPlaceAndRender(null));
+      this.ac.addListener("place_changed", () => this.getPlaceAndRender(null));
     }
     this.setPlaceholder();
   }
@@ -126,10 +132,11 @@ class PlaceSearchBar extends Component<PlaceSearchBarPropType> {
     return HARDCODED_RESULTS[inputVal.toLowerCase()];
   }
 
+  /* eslint-disable camelcase */
   private onAutocompleteKeyUp(
     e,
     onMouseDown: (customPlace: { name: string; place_id?: string }) => void
-  ) {
+  ): void {
     // Test for, and respond to, a few hardcoded results.
     const inputVal = (e.target as HTMLInputElement).value;
     const dcid = PlaceSearchBar.getHardcodedResultDcid(inputVal);
@@ -142,7 +149,7 @@ class PlaceSearchBar extends Component<PlaceSearchBarPropType> {
         const result = (
           <div
             className="pac-item"
-            onMouseDown={() => onMouseDown({ name: dcid })}
+            onMouseDown={(): void => onMouseDown({ name: dcid })}
           >
             <span className="pac-icon pac-icon-marker"></span>
             <span className="pac-item-query">
@@ -157,7 +164,10 @@ class PlaceSearchBar extends Component<PlaceSearchBarPropType> {
     }
   }
 
-  private getPlaceAndRender(customPlace: { name: string; place_id?: string }) {
+  private getPlaceAndRender(customPlace: {
+    name: string;
+    place_id?: string;
+  }): void {
     // Unmount all the custom items
     const containers = document.getElementsByClassName("pac-container");
     Array.from(containers).forEach((container) => {
@@ -183,8 +193,9 @@ class PlaceSearchBar extends Component<PlaceSearchBarPropType> {
       }
     }
   }
+  /* eslint-enable camelcase */
 
-  private setPlaceholder() {
+  private setPlaceholder(): void {
     this.inputElem.current.value = "";
     const numPlaces = Object.keys(this.props.places).length;
     this.inputElem.current.disabled = false;

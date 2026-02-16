@@ -27,6 +27,7 @@ import {
   HIDE_TILE_CLASS,
   TILE_ID_PREFIX,
 } from "../../constants/subject_page_constants";
+import { WEBSITE_SURFACE } from "../../shared/constants";
 import { NamedNode, NamedTypedPlace } from "../../shared/types";
 import { loadSpinner, removeSpinner } from "../../shared/util";
 import {
@@ -43,12 +44,11 @@ import {
 import {
   fetchDisasterEventPoints,
   getDate,
-  getHashValue,
   getSeverityFilters,
   getUpdatedHash,
   getUseCache,
 } from "../../utils/disaster_event_map_utils";
-import { isNlInterface } from "../../utils/nl_interface_utils";
+import { isNlInterface } from "../../utils/explore_utils";
 import {
   getColumnTileClassName,
   getColumnWidth,
@@ -193,7 +193,7 @@ export const DisasterEventBlock = memo(function DisasterEventBlock(
         {!hideFilters && (
           <div
             className="filter-toggle"
-            onClick={() => setShowFilters(!showFilters)}
+            onClick={(): void => setShowFilters(!showFilters)}
             title="Toggle filters"
           >
             <i className="material-icons">tune</i>
@@ -308,7 +308,8 @@ export function fetchDisasterEventData(
     };
     specIds.push(spec.id);
     const cacheKey = getDataFetchCacheKey(specDataOptions);
-    const promiseFn = () => fetchDisasterEventPoints(specDataOptions, apiRoot);
+    const promiseFn = (): Promise<DisasterEventPointData> =>
+      fetchDisasterEventPoints(specDataOptions, apiRoot);
     const promise = fetchData ? fetchData(cacheKey, promiseFn) : promiseFn();
     promises.push(promise);
   });
@@ -388,6 +389,7 @@ function renderTiles(
             tileSpec={tile.disasterEventMapTileSpec}
             parentPlaces={props.parentPlaces}
             showExploreMore={props.showExploreMore}
+            surface={WEBSITE_SURFACE}
           />
         );
       }
@@ -410,6 +412,7 @@ function renderTiles(
             property={tile.histogramTileSpec.prop}
             disasterEventData={tileEventData}
             showExploreMore={props.showExploreMore}
+            surface={WEBSITE_SURFACE}
           />
         );
       }
@@ -432,6 +435,7 @@ function renderTiles(
             disasterEventData={tileEventData}
             enclosedPlaceType={enclosedPlaceType}
             showExploreMore={props.showExploreMore}
+            surface={WEBSITE_SURFACE}
           />
         );
       }

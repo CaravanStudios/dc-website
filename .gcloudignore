@@ -12,6 +12,9 @@
 # below:
 .git
 .gitignore
+#!include:.gitignore
+#!include:.dockerignore
+!mcf_parser.py
 
 # Python pycache:
 **/__pycache__/**
@@ -24,8 +27,8 @@ static/node_modules/
 
 server/dist/
 
-**/.env/
-
-screenshots/*.png
+**/.venv/
+**/.venv_website/
+**/.venv_nl/
 
 website/autopush/commit_hash.txt

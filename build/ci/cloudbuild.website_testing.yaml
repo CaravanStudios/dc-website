@@ -19,24 +19,13 @@ steps:
     args:
       - -c
       - |
+        pip install uv
         ./run_test.sh --setup_python
-        exit 0
-
-  # Run Website screenshot
-  - id: screenshot
-    name: gcr.io/datcom-ci/webdriver-chrome:2023-12-11
-    entrypoint: /bin/bash
-    args:
-      - -c
-      - |
-        if [[ "$_TEST" == "all" || "$_TEST" == "screenshot" ]]; then
-          ./run_website_screenshot.sh $_DOMAIN true
-        fi
         exit 0
 
   # Run Website sanity
   - id: website_sanity
-    name: gcr.io/datcom-ci/webdriver-chrome:2023-12-11
+    name: gcr.io/datcom-ci/webdriver-chrome:2025-01-15
     entrypoint: /bin/bash
     args:
       - -c
@@ -48,7 +37,7 @@ steps:
 
   # Run Website adversarial
   - id: website_adversarial
-    name: gcr.io/datcom-ci/webdriver-chrome:2023-12-11
+    name: gcr.io/datcom-ci/webdriver-chrome:2025-01-15
     entrypoint: /bin/bash
     args:
       - -c

@@ -20,3 +20,5 @@ class Config(_base.Config):
   API_ROOT = 'api-root'
   SCHEME = 'http'
   USE_MEMCACHE = False
+  ENABLE_BQ = True
+  ENABLE_EMBEDDINGS_PLAYGROUND = True

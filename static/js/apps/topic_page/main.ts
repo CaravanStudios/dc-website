@@ -29,13 +29,13 @@ import { TopicsSummary } from "../../types/app/topic_page_types";
 import { App } from "./app";
 import { sortBy } from "lodash";
 
-window.onload = () => {
+window.addEventListener("load", (): void => {
   loadLocaleData("en", [import("../../i18n/compiled-lang/en/units.json")]).then(
     () => {
       renderPage();
     }
   );
-};
+});
 
 function renderPage(): void {
   // Get topic and render menu.
@@ -79,7 +79,7 @@ function renderPage(): void {
 
   // TODO(beets): use locale from URL
   const locale = "en";
-  loadLocaleData(locale, [
+  void loadLocaleData(locale, [
     import(`../../i18n/compiled-lang/${locale}/place.json`),
     // TODO(beets): Figure out how to place this where it's used so dependencies can be automatically resolved.
     import(`../../i18n/compiled-lang/${locale}/stats_var_labels.json`),

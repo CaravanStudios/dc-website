@@ -25,14 +25,15 @@ npm list @formatjs/cli || npm install formatjs
 npm run extract -- 'js/**/*.ts*' \
   --out-file js/i18n/strings/en/place.json \
   --id-interpolation-pattern '[sha512:contenthash:base64:6]'\
-  --ignore '**/i18n/i18n.tsx'
+  --ignore '**/i18n/i18n.tsx' \
+  --ignore '**/*.d.ts'
 
 cd ..
 
-python3 -m venv .env
-source .env/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip3 install -r server/requirements.txt -q
-.env/bin/pybabel extract -F server/babel-mapping.ini \
+.venv/bin/pybabel extract -F server/babel-mapping.ini \
   -o server/i18n/all.pot \
   -c "TRANSLATORS:" \
   -w 1000 \
@@ -57,7 +58,7 @@ done
 
 for LOCALE in $LOCALES;
 do
-  .env/bin/pybabel update \
+  .venv/bin/pybabel update \
     -i server/i18n/all.pot \
     -d server/i18n \
     -l $LOCALE \

@@ -21,7 +21,7 @@
 import * as d3 from "d3";
 import _ from "lodash";
 
-import { formatNumber } from "../i18n/i18n";
+import { formatNumber, localizeLink } from "../i18n/i18n";
 import {
   GA_EVENT_PLACE_CHART_CLICK,
   GA_PARAM_PLACE_CHART_CLICK,
@@ -138,10 +138,9 @@ export function addXAxis(
       .style("cursor", "pointer")
       .style("text-decoration", "underline")
       .on("click", function () {
-        window.open(
-          `${apiRoot || ""}${(<SVGElement>this).dataset.link}`,
-          "_blank"
-        );
+        const link = `${apiRoot || ""}${(<SVGElement>this).dataset.link}`;
+        const localizedUrl = localizeLink(link);
+        window.open(localizedUrl, "_blank");
       });
   }
 
@@ -229,7 +228,7 @@ export function addYAxis(
   yScale: d3.ScaleLinear<number, any>,
   textFontFamily?: string,
   unit?: string
-) {
+): number {
   const tickLength = chartWidth - MARGIN.right - MARGIN.left;
   const [displayUnit, label] = getDisplayUnitAndLabel(unit);
   axis
@@ -447,7 +446,7 @@ export function appendLegendElem(
     // define mouse behavior functions
     let hideFn: ReturnType<typeof setTimeout> = null;
     const highlightSelector = `.${LEGEND_HIGHLIGHT_CLASS}`;
-    const mouseoverFn = function () {
+    const mouseoverFn = function (): void {
       if (hideFn) {
         clearTimeout(hideFn);
       }
@@ -455,7 +454,7 @@ export function appendLegendElem(
       svg.selectAll(highlightSelector).style("opacity", 0.3);
       svg.selectAll(selector).style("opacity", 1);
     };
-    const mouseoutFn = function () {
+    const mouseoutFn = function (): void {
       // Slightly delay resetting styling so that quickly mousing over a stream
       // of legend items doesn't result in the chart flickering
       hideFn = setTimeout(() => {
@@ -483,7 +482,7 @@ export function buildInChartLegend(
   legend: d3.Selection<SVGGElement, any, any, any>,
   params: { [key: string]: Style },
   legendTextWidth: number
-) {
+): void {
   let yOffset = 0;
   for (const label in params) {
     // Create a group to hold dash line and legend text.
@@ -530,7 +529,7 @@ export function buildInChartLegend(
  */
 export function computeRanges(dataGroupsDict: {
   [geoId: string]: DataGroup[];
-}) {
+}): number[] {
   let dataGroups: DataGroup[];
   let minV = Number.MAX_VALUE;
   let maxV = Number.MIN_VALUE;

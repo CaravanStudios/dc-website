@@ -20,13 +20,13 @@
 
 import React, { useRef } from "react";
 
-import { NL_NUM_TILES_SHOWN } from "../../constants/app/nl_interface_constants";
+import { NL_NUM_TILES_SHOWN } from "../../constants/app/explore_constants";
 import {
   HIDE_COLUMN_CLASS,
   HIDE_TILE_CLASS,
 } from "../../constants/subject_page_constants";
 import { ColumnConfig } from "../../types/subject_page_proto_types";
-import { isNlInterface } from "../../utils/nl_interface_utils";
+import { isNlInterface } from "../../utils/explore_utils";
 
 export interface ColumnPropType {
   // id for the column
@@ -58,7 +58,7 @@ export function Column(props: ColumnPropType): JSX.Element {
       {isNlInterface() && props.config.tiles.length > NL_NUM_TILES_SHOWN && (
         <a
           className="show-more-expando"
-          onClick={(e) => {
+          onClick={(e): void => {
             onShowMore();
             e.preventDefault();
           }}
