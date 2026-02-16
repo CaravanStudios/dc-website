@@ -20,7 +20,8 @@ set -e
 set -o pipefail
 
 # Find the remote associated with the main repo
-upstream_remote=$(git remote -v | grep "datacommonsorg" | cut -f1 | uniq)
+# If there are multiple remotes with 'datacommonsorg' in their URL, pick the first one
+upstream_remote=$(git remote -v | grep "datacommonsorg" | grep "(push)" | cut -f1 | head -n 1)
 if [ -z "$upstream_remote" ]; then
   echo "No remote found with 'datacommonsorg' in its URL."
   exit 1
@@ -41,10 +42,6 @@ if [[ ! "$response" =~ ^[Yy]$ ]]; then
   exit 0
 fi
 
-# Delete the old prod tag locally and remotely
-git tag -d prod
-git push "$upstream_remote" :refs/tags/prod
-
-# Tag release as prod & push to github
-git tag prod
-git push "$upstream_remote" prod
+# Force-update the 'prod' tag to the current commit and push to remote
+git tag --force prod
+git push --force "$upstream_remote" refs/tags/prod

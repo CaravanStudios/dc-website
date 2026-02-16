@@ -44,12 +44,13 @@ import {
   StatVarSpec,
 } from "../../shared/types";
 import { TileSources } from "../../tools/shared/metadata/tile_sources";
-import { FacetMetadata } from "../../types/facet_metadata";
-import { getPoint, getSeries } from "../../utils/data_fetch_utils";
+import { FacetSelectionCriteria } from "../../types/facet_selection_criteria";
+import { getPoint } from "../../utils/data_fetch_utils";
 import { formatDate } from "../../utils/string_utils";
 import {
   formatString,
   getDenomInfo,
+  getDenomResp,
   getNoDataErrorMsg,
   getStatFormat,
   ReplacementStrings,
@@ -72,7 +73,9 @@ export interface HighlightTilePropType {
   // Optional: Override sources for this tile
   sources?: string[];
   // Facet metadata to use for the highlight tile
-  highlightFacet?: FacetMetadata;
+  facetSelector?: FacetSelectionCriteria;
+  // Optional: Passed into mixer calls to differentiate website and web components in usage logs
+  surface?: string;
 }
 
 export interface HighlightData extends Observation {
@@ -95,9 +98,10 @@ export function HighlightTile(props: HighlightTilePropType): ReactElement {
   const {
     statVarSpec,
     place,
-    highlightFacet,
+    facetSelector,
     apiRoot,
     description: highlightDesc,
+    surface,
   } = props;
 
   useEffect(() => {
@@ -106,15 +110,16 @@ export function HighlightTile(props: HighlightTilePropType): ReactElement {
         const data = await fetchData(
           place,
           statVarSpec,
-          highlightFacet,
-          apiRoot
+          facetSelector,
+          apiRoot,
+          surface
         );
         setHighlightData(data);
       } catch {
         setHighlightData(null);
       }
     })();
-  }, [apiRoot, highlightFacet, place, statVarSpec, highlightDesc]);
+  }, [apiRoot, facetSelector, place, statVarSpec, highlightDesc, surface]);
 
   /**
    * Callback function for building observation specifications.
@@ -191,6 +196,7 @@ export function HighlightTile(props: HighlightTilePropType): ReactElement {
           statVarToFacets={highlightData.statVarToFacets}
           statVarSpecs={[props.statVarSpec]}
           getObservationSpecs={getObservationSpecs}
+          surface={props.surface}
         />
       )}
     </div>
@@ -217,28 +223,27 @@ export function getDescription(
 export const fetchData = async (
   place: NamedTypedPlace,
   statVarSpec: StatVarSpec,
-  highlightFacet: FacetMetadata,
-  apiRoot?: string
+  facetSelector: FacetSelectionCriteria,
+  apiRoot?: string,
+  surface?: string
 ): Promise<HighlightData> => {
-  const facetId = highlightFacet
-    ? undefined
-    : statVarSpec.facetId
-    ? [statVarSpec.facetId]
-    : undefined;
+  const facetId =
+    facetSelector && facetSelector.facetMetadata
+      ? undefined
+      : statVarSpec.facetId
+      ? [statVarSpec.facetId]
+      : undefined;
   // Now assume highlight only talks about one stat var.
-  const statPromise = getPoint(
+  const statResp = await getPoint(
     apiRoot,
     [place.dcid],
     [statVarSpec.statVar],
     statVarSpec.date,
     undefined,
-    highlightFacet,
-    facetId
+    facetSelector,
+    facetId,
+    surface
   );
-  const denomPromise = statVarSpec.denom
-    ? getSeries(apiRoot, [place.dcid], [statVarSpec.denom], [], highlightFacet)
-    : Promise.resolve(null);
-  const [statResp, denomResp] = await Promise.all([statPromise, denomPromise]);
   const mainStatData = _.isArray(statResp.data[statVarSpec.statVar][place.dcid])
     ? statResp.data[statVarSpec.statVar][place.dcid][0]
     : statResp.data[statVarSpec.statVar][place.dcid];
@@ -267,26 +272,33 @@ export const fetchData = async (
   );
   let numFractionDigitsUsed: number;
   if (statVarSpec.denom) {
+    const [denomsByFacet, defaultDenom] = await getDenomResp(
+      [statVarSpec.denom],
+      statResp,
+      apiRoot,
+      false,
+      surface,
+      [place.dcid],
+      null,
+      null
+    );
     const denomInfo = getDenomInfo(
       statVarSpec,
-      denomResp,
+      denomsByFacet,
       place.dcid,
-      mainStatData.date
+      mainStatData.date,
+      mainStatData.facet,
+      defaultDenom
     );
     if (denomInfo && value) {
       value /= denomInfo.value;
-      const denomSeries = denomResp.data[statVarSpec.denom]?.[place.dcid];
-
-      if (denomSeries?.facet) {
-        const denomFacet = denomResp.facets[denomSeries.facet];
-        if (denomFacet) {
-          sources.add(denomFacet.provenanceUrl);
-          facets[denomSeries.facet] = denomFacet;
-          if (!statVarToFacets[statVarSpec.denom]) {
-            statVarToFacets[statVarSpec.denom] = new Set<string>();
-          }
-          statVarToFacets[statVarSpec.denom].add(denomSeries.facet);
+      if (denomInfo.facetId && denomInfo.facet) {
+        sources.add(denomInfo.source);
+        facets[denomInfo.facetId] = denomInfo.facet;
+        if (!statVarToFacets[statVarSpec.denom]) {
+          statVarToFacets[statVarSpec.denom] = new Set<string>();
         }
+        statVarToFacets[statVarSpec.denom].add(denomInfo.facetId);
       }
     } else {
       value = null;

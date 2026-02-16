@@ -23,10 +23,6 @@ import React, { RefObject, useState } from "react";
 import { intl } from "../../i18n/i18n";
 import { messages } from "../../i18n/i18n_messages";
 import {
-  isFeatureEnabled,
-  METADATA_FEATURE_FLAG,
-} from "../../shared/feature_flags/util";
-import {
   GA_EVENT_TILE_DOWNLOAD,
   GA_EVENT_TILE_EXPLORE_MORE,
   GA_PARAM_TILE_TYPE,
@@ -49,12 +45,17 @@ interface ChartFooterPropType {
   getObservationSpecs?: () => ObservationSpec[];
   // Link to explore more. Only show explore button if this object is non-empty.
   exploreLink?: { displayText: string; url: string };
+  // Hyperlink to show in footer. If this is non-empty, a custom link will be shown.
+  hyperlink?: string;
   // Text to show above buttons
   footnote?: string;
   // A ref to the chart container element.
   containerRef?: RefObject<HTMLElement>;
   // Additional content that will display in the footer.
   children?: React.ReactNode;
+  // Passed into calls to mixer for usage logs. Indicates which DC surface
+  // (website, datagemma, etc.) the call originates from.
+  surface: string;
 }
 
 export function ChartFooter(props: ChartFooterPropType): JSX.Element {
@@ -66,6 +67,16 @@ export function ChartFooter(props: ChartFooterPropType): JSX.Element {
       <footer className="chart-container-footer" {...{ part: "tools-footer" }}>
         <div className="main-footer-section">
           <div className="outlinks">
+            {props.hyperlink && (
+              <a
+                className="outlink-item custom-link-outlink"
+                href={props.hyperlink}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span className="material-icons-outlined">link</span>
+              </a>
+            )}
             {props.handleEmbed && (
               <div className="outlink-item download-outlink">
                 <span className="material-icons-outlined">download</span>
@@ -84,16 +95,16 @@ export function ChartFooter(props: ChartFooterPropType): JSX.Element {
               </div>
             )}
 
-            {props.getObservationSpecs &&
-              isFeatureEnabled(METADATA_FEATURE_FLAG) && (
-                <div className="outlink-item api-outlink">
-                  <ApiButton
-                    apiRoot={props.apiRoot}
-                    getObservationSpecs={props.getObservationSpecs}
-                    containerRef={props.containerRef}
-                  />
-                </div>
-              )}
+            {props.getObservationSpecs && (
+              <div className="outlink-item api-outlink">
+                <ApiButton
+                  apiRoot={props.apiRoot}
+                  getObservationSpecs={props.getObservationSpecs}
+                  containerRef={props.containerRef}
+                  surface={props.surface}
+                />
+              </div>
+            )}
 
             {props.exploreLink && (
               <div className="outlink-item explore-in-outlink">

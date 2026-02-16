@@ -3,6 +3,7 @@ https://datacommons.techsoup.org/place/country/AFG
 https://datacommons.techsoup.org/place/country/AFI
 https://datacommons.techsoup.org/place/country/AGO
 https://datacommons.techsoup.org/place/country/AIA
+https://datacommons.techsoup.org/place/country/ALA
 https://datacommons.techsoup.org/place/country/ALB
 https://datacommons.techsoup.org/place/country/AND
 https://datacommons.techsoup.org/place/country/ANT
@@ -263,9 +264,9 @@ https://datacommons.techsoup.org/place/country/YUG
 https://datacommons.techsoup.org/place/country/ZAF
 https://datacommons.techsoup.org/place/country/ZMB
 https://datacommons.techsoup.org/place/country/ZWE
+https://datacommons.techsoup.org/place/wikidataId/Q130340667
 https://datacommons.techsoup.org/place/wikidataId/Q23681
 https://datacommons.techsoup.org/place/wikidataId/Q244165
-https://datacommons.techsoup.org/place/wikidataId/Q27304761
 https://datacommons.techsoup.org/place/wikidataId/Q29999
 https://datacommons.techsoup.org/place/wikidataId/Q31354462
 https://datacommons.techsoup.org/place/wikidataId/Q40362
