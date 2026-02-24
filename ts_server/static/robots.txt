@@ -1,0 +1,78 @@
+# --- Always blocked for everyone  ---
+User-agent: *
+Disallow: /api/
+Disallow: /core/api/
+Disallow: /admin/
+
+# --- Block common AI scrapers everywhere ---
+User-agent: GPTBot
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Claude-User
+Disallow: /
+
+User-agent: Claude-SearchBot
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Perplexity-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: YouBot
+Disallow: /
+
+# --- Sitemaps ---
+Sitemap: https://datacommons.techsoup.org/sitemap/AdministrativeArea3.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/AdministrativeArea3.1.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/AdministrativeArea3.2.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/AdministrativeArea1.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/CongressionalDistrict.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/City.1.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/County.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/City.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/City.2.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/CensusCoreBasedStatisticalArea.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/StateComponent.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/AdministrativeArea2.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/AdministrativeArea2.1.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/PriorityPlaces.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/AdministrativeArea4.3.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/AdministrativeArea4.2.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/Continent.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/CommutingZone.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/AdministrativeArea4.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/CensusCountyDivision.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/AdministrativeArea4.1.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/State.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/EurostatNUTS3.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/Country.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/stat_vars.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/CensusZipCodeTabulationArea.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/EurostatNUTS1.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/SchoolDistrict.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/CensusTract.2.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/CensusTract.1.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/EurostatNUTS2.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/CensusTract.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/HighSchoolDistrict.0.txt
+Sitemap: https://datacommons.techsoup.org/sitemap/ElementarySchoolDistrict.0.txt

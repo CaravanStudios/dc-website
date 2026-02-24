@@ -60,6 +60,18 @@ RUN mkdir -p ./ts_server/dist && \
     cp -r /tmp/packages_dist/* ./ts_server/dist/ && \
     cp -r /tmp/ts_server_static/* ./ts_server/dist/
 
+# Copy robotx and sitemaps to server/dist
+RUN rm -rf ./server/dist/robots.txt && \
+    rm -rf ./server/dist/sitemap && \
+    cp -r /tmp/ts_server_static/robots.txt ./server/dist/robots.txt && \
+    cp -r /tmp/ts_server_static/sitemap ./server/dist/sitemap
+
+# nginx.
+COPY build/techsoup_cdc_services/nginx.conf ./nginx.conf
+
+## Copy executable script.
+#COPY build/cdc_services/run.sh .
+
 # Make script executable.
 RUN chmod +x run.sh
 
