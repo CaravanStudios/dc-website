@@ -46,6 +46,7 @@ COPY ts_server/ ./ts_server/
 COPY ts_web_app.py .
 
 # Copy executable script.
+COPY build/techsoup_cdc_services/run_nginx.sh .
 COPY build/techsoup_cdc_services/run.sh .
 
 # Static website assets.
@@ -73,6 +74,7 @@ COPY build/techsoup_cdc_services/nginx.conf ./nginx.conf
 #COPY build/cdc_services/run.sh .
 
 # Make script executable.
+RUN chmod +x run_nginx.sh
 RUN chmod +x run.sh
 
 # Add virtual env to the path.

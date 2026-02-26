@@ -87,6 +87,9 @@ services:
     platform: "linux/amd64"
     image: nginx:latest
     container_name: nginx
+    environment:
+      BLOCKLIST_PATH: "/secrets/blocklist/blocklist.txt"
+      BLOCKLIST_POLL_SECONDS: "10"
     depends_on:
       - dc-mixer
       - dc-nl-python
@@ -94,9 +97,12 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./nginx-cdc-dev.conf:/etc/nginx/nginx.conf
+      - ./nginx-cdc-dev.conf:/workspace/nginx.conf:ro
+      - ../../../secrets/blocklist/blocklist.txt:/secrets/blocklist/blocklist.txt:ro
+      - ../run_nginx.sh:/workspace/run_nginx.sh
     networks:
       - dc-web-net
+    command: ["/bin/bash", "/workspace/run_nginx.sh"]
 
 volumes:
   dist_volume:
