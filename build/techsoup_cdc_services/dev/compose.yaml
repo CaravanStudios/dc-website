@@ -90,6 +90,8 @@ services:
     environment:
       BLOCKLIST_PATH: "/secrets/blocklist/blocklist.txt"
       BLOCKLIST_POLL_SECONDS: "10"
+      NGINX_FOREGROUND: "true"
+      NGINX_CONF: /workspace/nginx.conf
     depends_on:
       - dc-mixer
       - dc-nl-python
