@@ -98,7 +98,7 @@ if [[ $DEBUG == "true" ]] then
     fi
 
     echo "Starting Website Server in debug mode."
-    python3 web_app.py 7070 &
+    python3 ts_web_app.py 7070 &
 else
     if [[ $ENABLE_MODEL == "true" ]] then
         echo "Starting NL Server."
