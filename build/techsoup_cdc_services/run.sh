@@ -111,7 +111,7 @@ else
     fi
 
     echo "Starting Website Server."
-    gunicorn --log-level info --preload --timeout 1000 --bind 0.0.0.0:7070 -w 4 web_app:app &
+    gunicorn --log-level info --preload --timeout 1000 --bind 0.0.0.0:7070 -w 4 ts_web_app:app &
 fi
 
 # Wait for any process to exit
