@@ -49,11 +49,11 @@ interface ToolChartFooterProps {
   sources: Set<string>;
   // Measurement methods of the data of the chart.
   mMethods: Set<string>;
-  // Whether to hide isRatio option.
-  hideIsRatio: boolean;
+  // Whether to hide per capita option.
+  hidePerCapitaOption: boolean;
   // Whether or not the chart is showing per capita calculation.
   isPerCapita?: boolean;
-  // Callback when isRatio is updated. Used when hideIsRatio is false.
+  // Callback when isPerCapita is updated. Used when hidePerCapitaOption is false.
   onIsPerCapitaUpdated?: (isPerCapita: boolean) => void;
   // children components
   children?: React.ReactNode;
@@ -70,6 +70,8 @@ interface ToolChartFooterProps {
   facets?: Record<string, StatMetadata>;
   // A mapping of which stat var used which facets
   statVarToFacets?: StatVarFacetMap;
+  // Array of entity dcids
+  entities?: string[];
   // A mapping of stat var dcids to their specific min and max date range from the chart
   statVarDateRanges?: Record<string, { minDate: string; maxDate: string }>;
   // the stat vars to link to in the metadata modal
@@ -187,6 +189,7 @@ export function ToolChartFooter(props: ToolChartFooterProps): ReactElement {
           {!_.isEmpty(props.sources) && (
             <TileSources
               containerRef={props.containerRef}
+              entities={props.entities}
               facets={props.facets}
               sources={props.sources}
               statVarDateRanges={props.statVarDateRanges}
@@ -219,7 +222,7 @@ export function ToolChartFooter(props: ToolChartFooterProps): ReactElement {
       </div>
       {chartOptionsOpened && (
         <div className={`${SELECTOR_PREFIX}-options-section`}>
-          {!props.hideIsRatio && (
+          {!props.hidePerCapitaOption && (
             <span className="chart-option">
               <FormGroup check>
                 <Label check>

@@ -262,12 +262,15 @@ function mockAxios(): void {
     data: {
       Count_Person_Employed: {
         title: "Employed",
+        pcAllowed: true,
       },
       Count_Establishment: {
         title: "Number Of Establishments",
+        pcAllowed: true,
       },
       Count_HousingUnit: {
         title: "Housing Units",
+        pcAllowed: true,
       },
     },
   };
@@ -745,9 +748,7 @@ test("all functionalities", async () => {
   });
   await app.update();
   await waitFor(() => {
-    expect(app.text()).toContain(
-      "Choose 2 statistical variables from the left pane"
-    );
+    expect(app.text()).toContain("Pick two statistical variables");
     expectCircles(0, app);
   });
 
