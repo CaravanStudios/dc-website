@@ -107,6 +107,20 @@
     "peerPlaces": [],
     "peerTopics": [
       {
+        "dcid": "dc/topic/EconomicActivity",
+        "name": "Economic Activity",
+        "types": [
+          "Topic"
+        ]
+      },
+      {
+        "dcid": "dc/topic/GlobalEconomicActivity",
+        "name": "Global Economic Activity",
+        "types": [
+          "Topic"
+        ]
+      },
+      {
         "dcid": "dc/topic/Income",
         "name": "Income",
         "types": [

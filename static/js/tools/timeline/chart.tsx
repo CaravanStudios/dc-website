@@ -16,7 +16,6 @@
 import { DataCommonsClient } from "@datacommonsorg/client";
 import _ from "lodash";
 import React, { Component, createRef, ReactElement, RefObject } from "react";
-import { FormGroup, Input, Label } from "reactstrap";
 
 import { computePlotParams, PlotParams } from "../../chart/base";
 import { drawGroupLineChart } from "../../chart/draw_line";
@@ -168,6 +167,12 @@ class Chart extends Component<ChartPropsType, ChartStateType> {
         sv in this.props.svFacetId ? this.props.svFacetId[sv] : "";
     }
 
+    // Whether to hide the "per capita" toggle in the footer
+    // If any stat var allows per capita, then hidePerCapitaToggle is false (we will show the toggle)
+    const hidePerCapitaToggle = !Object.values(this.props.statVarInfos).some(
+      (svInfo) => svInfo.pcAllowed
+    );
+
     // Prepare props for ChartEmbed.
     const embedStatVarSpecs: StatVarSpec[] = [];
     const embedStatVarToFacets: StatVarFacetMap = {};
@@ -187,6 +192,7 @@ class Chart extends Component<ChartPropsType, ChartStateType> {
           log: false,
           scaling: undefined,
           unit: undefined,
+          noPerCapita: !svInfo.pcAllowed,
         });
         if (facetId) {
           embedStatVarToFacets[svDcid] = new Set([facetId]);
@@ -194,14 +200,12 @@ class Chart extends Component<ChartPropsType, ChartStateType> {
       }
       // Get the denom for ChartEmbed
       if (this.props.pc && this.props.denom) {
-        const denomFacetId = findFirstAvailableFacet(
-          places,
-          (place) =>
-            this.state.rawData.statAllData[this.props.denom]?.[place]?.[0]
-              ?.facet
-        );
-        if (denomFacetId) {
-          embedStatVarToFacets[this.props.denom] = new Set([denomFacetId]);
+        if (
+          this.state.statData.denomFacets &&
+          this.state.statData.denomFacets.size > 0
+        ) {
+          embedStatVarToFacets[this.props.denom] =
+            this.state.statData.denomFacets;
         }
       }
     }
@@ -243,6 +247,7 @@ class Chart extends Component<ChartPropsType, ChartStateType> {
         </div>
         <ToolChartFooter
           chartId={this.props.chartId}
+          entities={Object.keys(this.props.placeNameMap)}
           sources={
             this.state.statData ? this.state.statData.sources : new Set()
           }
@@ -251,7 +256,7 @@ class Chart extends Component<ChartPropsType, ChartStateType> {
               ? this.state.statData.measurementMethods
               : new Set()
           }
-          hideIsRatio={false}
+          hidePerCapitaOption={hidePerCapitaToggle}
           isPerCapita={this.props.pc}
           onIsPerCapitaUpdated={(isPerCapita: boolean): void =>
             setChartOption(this.props.chartId, "pc", isPerCapita)
@@ -266,6 +271,7 @@ class Chart extends Component<ChartPropsType, ChartStateType> {
         {this.state.isDataLoaded && (
           <ChartEmbed
             ref={this.embedModalElement}
+            entities={Object.keys(this.props.placeNameMap)}
             facets={this.state.statData.facets}
             statVarSpecs={embedStatVarSpecs}
             statVarToFacets={embedStatVarToFacets}
@@ -460,10 +466,9 @@ class Chart extends Component<ChartPropsType, ChartStateType> {
     metadataMap: Record<string, Record<string, StatMetadata>>
   ): Promise<void> {
     try {
-      const enriched = await fetchFacetsWithMetadata(
-        metadataMap,
-        this.dataCommonsClient
-      );
+      const enriched = await fetchFacetsWithMetadata(metadataMap, {
+        entities: Object.keys(this.props.placeNameMap),
+      });
       const facetList = this.getFacetList(statVars, enriched);
       this.setState({ facetList, facetListLoading: false });
     } catch {

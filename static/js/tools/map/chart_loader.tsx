@@ -38,7 +38,7 @@ import {
   buildObservationSpecs,
   ObservationSpec,
 } from "../../shared/observation_specs";
-import { FacetStore, StatMetadata } from "../../shared/stat_types";
+import { StatMetadata } from "../../shared/stat_types";
 import { StatVarFacetMap, StatVarSpec } from "../../shared/types";
 import {
   getCappedStatVarDate,
@@ -180,37 +180,74 @@ export function ChartLoader(): ReactElement {
   }, [statVar.value, chartStore.mapValuesDates.data?.unit]);
 
   /**
-   * Convert facet metadata and mappings (derived from the chart store) into a format
-   * to be used for citation display in the embed modal.
+   * Convert facet metadata and mappings (derived from the facet list) into a format
+   * to be used for citation display in the embed modal and footer.
    */
   const { facets, statVarToFacets } = useMemo(() => {
     const facets: Record<string, StatMetadata> = {};
     const statVarToFacets: StatVarFacetMap = {};
 
-    const mergeFacets = (
-      facetStore: FacetStore,
-      statVarDcid?: string
-    ): void => {
-      if (!facetStore) return;
-      for (const facetId in facetStore) {
-        facets[facetId] = facetStore[facetId];
-        if (statVarDcid) {
-          if (!statVarToFacets[statVarDcid]) {
-            statVarToFacets[statVarDcid] = new Set();
-          }
-          statVarToFacets[statVarDcid].add(facetId);
+    if (facetList) {
+      for (const facetInfo of facetList) {
+        const svDcid = facetInfo.dcid;
+
+        if (!statVarToFacets[svDcid]) {
+          statVarToFacets[svDcid] = new Set();
+        }
+
+        // Compile facets that are used in the actual map
+        const selectedFacetIds = new Set<string>();
+
+        if (
+          svDcid === statVar.value.dcid &&
+          chartStore.mapValuesDates.data?.numerFacets
+        ) {
+          chartStore.mapValuesDates.data.numerFacets.forEach((f) => {
+            if (facetInfo.metadataMap[f]) {
+              selectedFacetIds.add(f);
+            }
+          });
+        }
+
+        const facetIdsToAdd = Array.from(selectedFacetIds);
+
+        for (const facetId of facetIdsToAdd) {
+          statVarToFacets[svDcid].add(facetId);
+          facets[facetId] = facetInfo.metadataMap[facetId];
         }
       }
-    };
+    }
 
-    if (chartStore.defaultStat.data?.facets) {
-      mergeFacets(chartStore.defaultStat.data.facets, statVar.value.dcid);
+    // If per capita, explicitly include the denominator facets
+    // that were tracked during data processing.
+    const denom = statVar.value.denom;
+    const denomFacets = chartStore.mapValuesDates.data?.denomFacets;
+
+    if (statVar.value.perCapita && denom && denomFacets?.size > 0) {
+      if (!statVarToFacets[denom]) {
+        statVarToFacets[denom] = new Set();
+      }
+
+      const denomMetadataMap = chartStore.denomStat.data?.facets || {};
+
+      for (const facetId of Array.from(denomFacets)) {
+        statVarToFacets[denom].add(facetId);
+        if (denomMetadataMap[facetId]) {
+          facets[facetId] = denomMetadataMap[facetId];
+        }
+      }
     }
-    if (chartStore.denomStat.data?.facets && statVar.value.denom) {
-      mergeFacets(chartStore.denomStat.data.facets, statVar.value.denom);
-    }
+
     return { facets, statVarToFacets };
-  }, [chartStore.defaultStat.data, chartStore.denomStat.data, statVar.value]);
+  }, [
+    chartStore.denomStat.data?.facets,
+    chartStore.mapValuesDates.data?.denomFacets,
+    chartStore.mapValuesDates.data?.numerFacets,
+    facetList,
+    statVar.value.dcid,
+    statVar.value.denom,
+    statVar.value.perCapita,
+  ]);
 
   /**
    * Callback function for building observation specifications.
@@ -346,6 +383,15 @@ export function ChartLoader(): ReactElement {
     );
 
     const footer = document.getElementById("metadata").dataset.footer || "";
+
+    const entities = Array.from(
+      new Set([
+        ...Object.keys(chartStore.mapValuesDates.data?.mapValues || {}),
+        ...Object.keys(chartStore.mapPointValues.data || {}),
+        ...Object.keys(chartStore.breadcrumbValues.data || {}),
+      ])
+    );
+
     return (
       <div className="chart-region" ref={containerRef}>
         <Chart
@@ -370,6 +416,10 @@ export function ChartLoader(): ReactElement {
           handleEmbed={handleEmbed}
           getObservationSpecs={getObservationSpecs}
           containerRef={containerRef}
+          facets={facets}
+          statVarToFacets={statVarToFacets}
+          statVarSpecs={currentStatVarSpec ? [currentStatVarSpec] : []}
+          entities={entities}
         >
           {display.value.showTimeSlider &&
             sampleDates &&
@@ -404,6 +454,7 @@ export function ChartLoader(): ReactElement {
         {footer && <div className="footer">* {footer}</div>}
         <ChartEmbed
           ref={embedModalElement}
+          entities={entities}
           facets={facets}
           statVarSpecs={currentStatVarSpec ? [currentStatVarSpec] : []}
           statVarToFacets={statVarToFacets}

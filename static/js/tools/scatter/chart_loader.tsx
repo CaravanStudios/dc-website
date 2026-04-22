@@ -67,11 +67,7 @@ import {
   IsLoadingWrapper,
   PlaceInfo,
 } from "./context";
-import {
-  getStatAllWithinPlace,
-  getStatWithinPlace,
-  ScatterChartType,
-} from "./util";
+import { getStatAllWithinPlace, getStatWithinPlace } from "./util";
 
 type Cache = {
   // key here is stat var.
@@ -92,15 +88,25 @@ type ChartData = {
   sources: Set<string>;
   xUnit: string;
   yUnit: string;
+  xDenomFacets: Set<string>;
+  yDenomFacets: Set<string>;
+  xNumerFacets: Set<string>;
+  yNumerFacets: Set<string>;
 };
 
 export function ChartLoader(): ReactElement {
   const { x, y, place, display } = useContext(Context);
   const cache = useCache();
   const chartData = useChartData(cache);
-
   const { facetSelectorMetadata, facetListLoading, facetListError } =
-    useFacetMetadata(cache?.baseFacets || null);
+    useFacetMetadata(
+      cache?.baseFacets || null,
+      {
+        parentPlace: place.value.enclosingPlace.dcid,
+        enclosedPlaceType: place.value.enclosedPlaceType,
+      },
+      WEBSITE_SURFACE
+    );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const embedModalElement = useRef<ChartEmbed>(null);
@@ -141,35 +147,58 @@ export function ChartLoader(): ReactElement {
 
   /**
    * Convert facet metadata and mappings (derived from the chart store) into a format
-   * to be used for citation display in the embed modal.
+   * to be used for citation display in the embed modal, as well as the metadata modal.
    */
   const { facets, statVarToFacets } = useMemo(() => {
     const facets: Record<string, StatMetadata> = {};
     const statVarToFacets: StatVarFacetMap = {};
 
-    if (!cache) return { facets, statVarToFacets };
-
-    // We create the facet map from the cache's metadataMap.
-    if (cache.metadataMap) {
-      for (const facetId in cache.metadataMap) {
-        facets[facetId] = cache.metadataMap[facetId];
-      }
+    if (!cache || !cache.metadataMap || !chartData) {
+      return { facets, statVarToFacets };
     }
 
-    // We then build the statVar to facet mapping from baseFacets.
-    if (cache.baseFacets) {
-      for (const statVarDcid in cache.baseFacets) {
-        if (!statVarToFacets[statVarDcid]) {
-          statVarToFacets[statVarDcid] = new Set();
-        }
-        for (const facetId in cache.baseFacets[statVarDcid]) {
-          statVarToFacets[statVarDcid].add(facetId);
+    // Helper to map plotted facets to their variable and populate metadata
+    const processFacets = (
+      statVarDcid: string,
+      plottedFacets: Set<string>
+    ): void => {
+      if (!statVarDcid || !plottedFacets || plottedFacets.size === 0) return;
+
+      if (!statVarToFacets[statVarDcid]) {
+        statVarToFacets[statVarDcid] = new Set();
+      }
+
+      for (const facetId of Array.from(plottedFacets)) {
+        statVarToFacets[statVarDcid].add(facetId);
+        if (cache.metadataMap[facetId]) {
+          facets[facetId] = cache.metadataMap[facetId];
         }
       }
+    };
+
+    //Add in numerators that appear in the chart
+    processFacets(xVal.statVarDcid, chartData.xNumerFacets);
+    processFacets(yVal.statVarDcid, chartData.yNumerFacets);
+
+    //Add in denominators that appear in the chart
+    if (xVal.perCapita && xVal.denom) {
+      processFacets(xVal.denom, chartData.xDenomFacets);
+    }
+    if (yVal.perCapita && yVal.denom) {
+      processFacets(yVal.denom, chartData.yDenomFacets);
     }
 
     return { facets, statVarToFacets };
-  }, [cache]);
+  }, [
+    cache,
+    chartData,
+    xVal.statVarDcid,
+    xVal.perCapita,
+    xVal.denom,
+    yVal.statVarDcid,
+    yVal.perCapita,
+    yVal.denom,
+  ]);
 
   /**
    * Callback function for building observation specifications.
@@ -310,6 +339,9 @@ export function ChartLoader(): ReactElement {
                 placeInfo={place.value}
                 display={display}
                 sources={chartData.sources}
+                facets={facets}
+                statVarToFacets={statVarToFacets}
+                statVarSpecs={currentStatVarSpecs}
                 svFacetId={{
                   [x.value.statVarDcid]: x.value.metahash,
                   [y.value.statVarDcid]: y.value.metahash,
@@ -324,6 +356,7 @@ export function ChartLoader(): ReactElement {
               />
               <ChartEmbed
                 ref={embedModalElement}
+                entities={Object.keys(chartData.points)}
                 facets={facets}
                 statVarSpecs={currentStatVarSpecs}
                 statVarToFacets={statVarToFacets}
@@ -418,6 +451,7 @@ async function loadData(
     const metadataMap = {
       ...(statResponse.facets || {}),
       ...(statAllResponse.facets || {}),
+      ...(populationData.facets || {}),
     };
 
     const baseFacets: FacetResponse = {};
@@ -566,6 +600,11 @@ function getChartData(
   const sources: Set<string> = new Set();
   let xUnit = "";
   let yUnit = "";
+  const xDenomFacets: Set<string> = new Set();
+  const yDenomFacets: Set<string> = new Set();
+  const xNumerFacets: Set<string> = new Set();
+  const yNumerFacets: Set<string> = new Set();
+
   for (const namedPlace of place.enclosedPlaces) {
     const xDenom = x.perCapita ? x.denom : null;
     const yDenom = y.perCapita ? y.denom : null;
@@ -587,11 +626,38 @@ function getChartData(
         sources.add(source);
       }
     });
+
+    // Compile the used numerator and denominator facets
+    if (placeChartData.xDenomFacet) {
+      xDenomFacets.add(placeChartData.xDenomFacet);
+    }
+    if (placeChartData.yDenomFacet) {
+      yDenomFacets.add(placeChartData.yDenomFacet);
+    }
+
+    const xNumerFacet = xStatData?.[namedPlace.dcid]?.facet;
+    if (xNumerFacet) {
+      xNumerFacets.add(xNumerFacet);
+    }
+    const yNumerFacet = yStatData?.[namedPlace.dcid]?.facet;
+    if (yNumerFacet) {
+      yNumerFacets.add(yNumerFacet);
+    }
+
     points[namedPlace.dcid] = placeChartData.point;
     xUnit = xUnit || placeChartData.xUnit;
     yUnit = yUnit || placeChartData.yUnit;
   }
-  return { points, sources, xUnit, yUnit };
+  return {
+    points,
+    sources,
+    xUnit,
+    yUnit,
+    xDenomFacets,
+    yDenomFacets,
+    xNumerFacets,
+    yNumerFacets,
+  };
 }
 
 function getFacetInfo(
