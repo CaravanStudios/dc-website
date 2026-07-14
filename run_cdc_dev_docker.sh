@@ -21,42 +21,18 @@ Usage:
 
 ./run_cdc_dev_docker.sh [--env_file|-e <env.list file path>] 
   [--actions|-a run|build_run|build|build_upload|upload] [--container|-c all|service]
-  [--release|-r latest|stable] [--image|-i <custom image name:tag>] 
+  [--image|-i <custom image name:tag>] 
   [--package|-p <package name:tag>] [--schema_update|-s]
 
-If no options are set, the default is '--env_file $PWD/custom_dc/env.list --actions run --container all --release stable'
-All containers are run, using the Data Commons-provided 'stable' image.
-
-Some of these options are mutually exclusive and some are required depending on 
-the setting of the '--actions' option. Here is a high-level summary of valid 
-combinations:
-
--a build_run [-c all|service] [-r latest|stable] -i <custom image name:tag>
-
--a build -i <custom image name:tag>
-
--a build_upload|upload -i <custom image name:tag> [-p <package name:tag>]
-
--a run|build_run [-c all] [-r latest|stable] [-i <custom image name:tag>] -s
-
-Note: If you are running in "hybrid" mode, the only valid options are:
-
-./run_cdc_dev_docker.sh [--env_file|-e <env.list file path>] [--actions|-a run|build_run] 
- [--image|-i <custom image name:tag>]
-
-./run_cdc_dev_docker.sh [--env_file|-e <env.list file path>] [--actions|-a run] 
-  [--schema_update|-s]
-
-All others will be ignored. The script will infer the correct container based on the 
-env.list directory settings and/or the 'build_run' setting. 
+If no options are set, the default is '--env_file $PWD/custom_dc/env.list --actions run --container all'
+All containers are run using the Data Commons-provided 'stable' image.
 
 Options:
 
 --env_file|-e <path to env.list file> 
   Optional: The path and file name of the environment file env.list. 
   Default: custom_dc/env.list
-  Use this option to maintain multiple alternate environment files with different
-  settings and directories (helpful for testing).
+  Use this option to maintain multiple alternate environment files with different settings and directories (helpful for testing).
       
 --actions|-a
   Optional: The different Docker commands to run. 
@@ -70,64 +46,47 @@ Options:
   With all these options, you must also specify '--image' with the (source) 
   image name and tag.
 
--container|-c all|service|data
+--container|-c all|service|data
   Optional: The containers to run.
   Default with 'run' and 'build_run': all: Run all containers. Other options are:
-  * service: Only run the service container. You can use this if you have not made 
-    any changes to your data, or   you are only running the service container 
-    locally (with the data container in the cloud) Exclusive with '--schema-update'.
-  * data: Only run the data container. This is only valid if you are running the 
-    data container locally (with the service container in the cloud).
-    Only valid with 'run'. Ignored otherwise.
-  For "hybrid" setups, the script will infer the correct container to run from the 
-  env.list file; this setting will be ignored.
-
---release|-r stable|latest
-  Optional with 'run' and 'build_run'.
-  Default: stable: run the prebuilt 'stable' image provided by Data Commons team.
-  Other options:
-  * latest: Run the 'latest' release provided by Data Commons team. 
-    If you specify this with an additional '--image' option, the option applies 
-    only to the data container. Otherise, it applies to both containers. 
-    Only valid with 'run' and 'build_run'. Ignored otherwise.
+  * service: Only run the service container. You can use this if you have not made any changes to your data, or   you are only running the service container locally (with the data container in the cloud) Exclusive with '--schema-update'.
+  * data: Only run the data container. This is only valid if you are running the data container locally (with the service container in the cloud).
+  Only valid with 'run'. Ignored otherwise.
+  For "hybrid" setups, the script will infer the correct container to run from the env.list file; this setting will be ignored.
 
 --image|-i <custom image name:tag>
-  Optional with 'run': the name and tag of the custom image to run in the service 
-  container.
+  Optional with 'run': the name and tag of the custom image to run in the service container.
   Required for all other actions: the name and tag of the custom image to build/run/upload.
   
 --package|-p <target package name:tag>
   Optional: The target image to be created and uploaded to Google Cloud.
   Default: same as the name and tag provided in the '--image' option.
-  Only valid with 'build_upload' and 'upload'. Ignored otherwise.
+  Only valid with 'build_upload' and 'upload'; ignored otherwise.
      
 --schema_update|-s
   Optional. In the rare case that you get a 'SQL checked failed' error in
   your running service, you can set this to run the data container in 
   schema update mode, which skips embeddings generation and completes much faster.
-  Only valid with 'run' and 'build_run' actions and 'all' or 'data' containers. 
-  Ignored otherwise.
-
+  Only valid with 'run' and 'build_run' actions and 'all' or 'data' containers; ignored otherwise.
+  
 Examples:
 
 ./run_cdc_dev_docker.sh
   Start all containers, using the prebuilt 'stable' release from Data Commons team.
 
-./run_cdc_dev_docker.sh --container service --release latest
-  Start only the service container, using the prebuilt latest release.
+./run_cdc_dev_docker.sh --container service
+  Start only the service container, using the prebuilt 'stable' release.
   Use this if you haven't made any changes to your data but just want to pick 
-  up the latest code.
+  up the latest, stable code.
 
 ./run_cdc_dev_docker.sh --image my-datacommons:dev
   Start all containers, using a custom-built image for the service container.
 
 ./run_cdc_dev_docker.sh --actions build --image my-datacommons:dev
-  Build a custom image only, and don't start any containers. Use this if you are 
-  building a custom image that you will upload and test later in Google Cloud.
+  Build a custom image only, and don't start any containers. Use this if you are building a custom image that you will upload and test later in Google Cloud.
 
 ./run_cdc_dev_docker.sh --actions build_run --image my-datacommons:dev --container service
-  Build a custom image and only start the service. Use this if you haven't made any 
-  changes to your data but are developing your custom site.
+  Build a custom image and only start the service. Use this if you haven't made any changes to your data but are developing your custom site.
 
 ./run_cdc_dev_docker.sh --actions build_upload --image my-datacommons:dev
   Build a custom image, create a package with the same name and tag, and upload
@@ -144,8 +103,12 @@ set -e
 # Build custom image
 build() {
   log_notice "Starting Docker build of '$IMAGE'. This will take several minutes..."
+  local website_hash=$(git rev-parse --short=7 HEAD 2>/dev/null || echo "")
+  local mixer_hash=$(git rev-parse --short=7 HEAD:mixer 2>/dev/null || echo "")
   docker build --tag $IMAGE \
-  -f build/cdc_services/Dockerfile .
+    --build-arg MIXER_HASH="$mixer_hash" \
+    --build-arg WEBSITE_HASH="$website_hash" \
+    -f build/cdc_services/Dockerfile .
 }
 
 # Package and push custom image to GCP
@@ -163,97 +126,121 @@ upload() {
 
 # Run data container
 run_data() {
-  if [ "$RELEASE" == "latest" ]; then
-    docker pull gcr.io/datcom-ci/datacommons-data:latest
+
+# 1. Set local image variable, construct and print output message
+
+  local message
+  message="Starting Docker data container with stable release"
+
+  if [[ "$SCHEMA_UPDATE" == true ]]; then
+    message+=" in schema update mode"
   fi
-  schema_update='""'
-  schema_update_text=""
-  if [ "$SCHEMA_UPDATE" == true ]; then
-    schema_update="-e DATA_UPDATE_MODE=schemaupdate"
-    schema_update_text=" in schema update mode"
+  if [[ "$data_hybrid" == true ]]; then
+    message+=" and writing output to Google Cloud"
   fi
-  if [ "$data_hybrid" == true ]; then
+  message+="..."
+
+  log_notice "$message"
+
+# 2. Define base Docker arguments shared by all modes
+  local docker_args=(
+    -it
+    --env-file "$ENV_FILE"
+    -e DEBUG=true
+    -v "$INPUT_DIR:$INPUT_DIR"
+  )
+
+# 3. Conditionally add GCP Credentials for remote output
+  if [[ "$data_hybrid" == true ]]; then
     check_app_credentials
-    log_notice "Starting Docker data container with '$RELEASE' release${schema_update_text} and writing output to Google Cloud..."
-    docker run -it \
-    --env-file "$ENV_FILE" \
-    ${schema_update//\"/} \
-    -e GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json \
-    -v $HOME/.config/gcloud/application_default_credentials.json:/gcp/creds.json:ro \
-    -v $INPUT_DIR:$INPUT_DIR \
-    gcr.io/datcom-ci/datacommons-data:${RELEASE}
+    docker_args+=(
+      -e GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json
+      -v "$HOME/.config/gcloud/application_default_credentials.json:/gcp/creds.json:ro"
+    )
   else
-    log_notice "Starting Docker data container with '$RELEASE' release${schema_update_text}..."
-    docker run -it \
-    --env-file "$ENV_FILE" \
-    ${schema_update//\"/} \
-    -v $INPUT_DIR:$INPUT_DIR \
-    -v $OUTPUT_DIR:$OUTPUT_DIR \
-    gcr.io/datcom-ci/datacommons-data:${RELEASE}
+    docker_args+=(-v "$OUTPUT_DIR:$OUTPUT_DIR")
   fi
+
+# 4. Conditionally add update mode flag 
+  if [[ "$SCHEMA_UPDATE" == true ]]; then
+    docker_args+=(-e DATA_UPDATE_MODE=schemaupdate)
+  fi
+  
+# 7. Execute the Docker command
+  docker run "${docker_args[@]}" "gcr.io/datcom-ci/datacommons-data:stable"
 }
 
 # Run service container
 run_service() {
-  if [ "$service_hybrid" == true ]; then
-    check_app_credentials
-    # Custom-built image
-    if [ -n "$IMAGE" ]; then
-      log_notice "Starting Docker services container with custom image '${IMAGE}' reading data in Google Cloud..."
-      docker run -it \
-      --env-file "$ENV_FILE" \
-      -p 8080:8080 \
-      -e DEBUG=true \
-      -e GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json \
-      -v $HOME/.config/gcloud/application_default_credentials.json:/gcp/creds.json:ro \
-      -v $PWD/server/templates/custom_dc/$CUSTOM_DIR:/workspace/server/templates/custom_dc/$CUSTOM_DIR \
-      -v $PWD/static/custom_dc/$CUSTOM_DIR:/workspace/static/custom_dc/$CUSTOM_DIR \
-      $IMAGE
-    # Data Commons-released images
-    else 
-      if [ "$RELEASE" == "latest" ]; then
-        docker pull gcr.io/datcom-ci/datacommons-services:latest
-      fi
-      log_notice "Starting Docker services container with '${RELEASE}' release reading data in Google Cloud..."
-      docker run -it \
-      --env-file "$ENV_FILE" \
-      -p 8080:8080 \
-      -e DEBUG=true \
-      -e GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json \
-      -v $HOME/.config/gcloud/application_default_credentials.json:/gcp/creds.json:ro \
-      -v $PWD/server/templates/custom_dc/$CUSTOM_DIR:/workspace/server/templates/custom_dc/$CUSTOM_DIR \
-      gcr.io/datcom-ci/datacommons-services:${RELEASE}
-    fi
-  # Regular mode
-  else
-  # Custom-built image
+
+  # 0. Check if there is an already running container on port 8080 and kill it
+  check_docker
+
+  # 1. Set IMAGE variable, construct and print output message
+
+  local message
+
   if [ -n "$IMAGE" ]; then
-    log_notice "Starting Docker services container with custom image '${IMAGE}'..."
-    docker run -it \
-    --env-file "$ENV_FILE" \
-    -p 8080:8080 \
-    -e DEBUG=true \
-    -v $INPUT_DIR:$INPUT_DIR \
-    -v $OUTPUT_DIR:$OUTPUT_DIR \
-    -v $PWD/server/templates/custom_dc/$CUSTOM_DIR:/workspace/server/templates/custom_dc/$CUSTOM_DIR \
-    -v $PWD/static/custom_dc/$CUSTOM_DIR:/workspace/static/custom_dc/$CUSTOM_DIR \
-      "$IMAGE"
-  # Data Commons-released images
-  else 
-    if [ "$RELEASE" == "latest" ]; then
-     docker pull gcr.io/datcom-ci/datacommons-services:latest
-    fi
-    log_notice "Starting Docker services container with '${RELEASE}' release..."
-    docker run -it \
-    --env-file "$ENV_FILE" \
-    -p 8080:8080 \
-    -e DEBUG=true \
-    -v $INPUT_DIR:$INPUT_DIR \
-    -v $OUTPUT_DIR:$OUTPUT_DIR \
-    -v $PWD/server/templates/custom_dc/$CUSTOM_DIR:/workspace/server/templates/custom_dc/$CUSTOM_DIR \
-    gcr.io/datcom-ci/datacommons-services:${RELEASE}
+    message="Starting Docker services container with custom image '${IMAGE}'"
+  else
+    message="Starting Docker services container with stable release"
+    IMAGE="gcr.io/datcom-ci/datacommons-services:stable"
   fi
-fi
+
+  if [[ "$service_hybrid" == true ]]; then
+    message+=" with data in Google Cloud"
+  fi
+  
+  if [[ "$instructions_hybrid" == true ]]; then
+    message+=" and custom instruction files in Google Cloud"
+  fi
+  message+="..."
+
+  log_notice "$message"
+
+ # 3. Define base Docker arguments shared by all modes
+  local docker_args=(
+    -it
+    --env-file "$ENV_FILE"
+    -p 8080:8080
+    -e DEBUG=true
+    -v "$PWD/server/templates/custom_dc/$FLASK_ENV:/workspace/server/templates/custom_dc/$FLASK_ENV"
+    -v "$PWD/static/custom_dc/$FLASK_ENV:/workspace/static/custom_dc/$FLASK_ENV"
+  )
+
+  # 4. Conditionally add GCP Credentials (needed if data OR instructions are remote)
+  if [[ "$service_hybrid" == true || "$instructions_hybrid" == true ]]; then
+    check_app_credentials
+    docker_args+=(
+      -e GOOGLE_APPLICATION_CREDENTIALS=/gcp/creds.json
+      -v "$HOME/.config/gcloud/application_default_credentials.json:/gcp/creds.json:ro"
+    )
+  fi
+
+  # 5. Conditionally mount input/output directories (local data)
+  if [[ "$service_hybrid" != true ]]; then
+    docker_args+=(
+      -v "$INPUT_DIR:$INPUT_DIR"
+      -v "$OUTPUT_DIR:$OUTPUT_DIR"
+    )
+  fi
+
+  # 6. Conditionally mount custom MCP instructions directory (local instructions)
+  if [[ "$instructions_hybrid" != true ]]; then
+    docker_args+=( -v "$DC_INSTRUCTIONS_DIR:$DC_INSTRUCTIONS_DIR" )
+  fi
+
+  # 7. Execute the Docker command
+  docker run "${docker_args[@]}" "$IMAGE"
+}
+
+# Convenience function for killing already running Docker container
+check_docker(){
+  container_id=$(docker ps -qf "publish=8080")
+    if [ -n "$container_id" ]; then
+      log_notice "A container is already running on port 8080. Stopping and removing the container..."
+      docker kill $container_id
+    fi
 }
 
 # Functions for checking GCP credentials
@@ -303,7 +290,6 @@ check_gcloud_credentials() {
 ENV_FILE="$PWD/custom_dc/env.list"
 ACTIONS="run"
 CONTAINER="all"
-RELEASE="stable"
 SCHEMA_UPDATE=false
 IMAGE=""
 PACKAGE=""
@@ -388,31 +374,12 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       ;;
-    -r | --release | --release=*)
-      parsed=$(parse_arg "$1" "$2" "$#")
-      val="${parsed%|*}"
-      shift_count="${parsed#*|}"
-      shift $shift_count
-
-      if [[ "$val" =~ ^(latest|stable)$ ]]; then
-        RELEASE="$val"
-      else
-        log_error "That is not a valid release option. Valid options are 'stable' or 'latest'\n"
-        exit 1
-      fi
-      ;;
     -i | --image | --image=*)
       parsed=$(parse_arg "$1" "$2" "$#")
       val="${parsed%|*}"
       shift_count="${parsed#*|}"
       shift $shift_count
-
-      if [[ "$val" =~ ^(latest|stable)$ ]]; then
-        log_error "That is not a valid custom image name. Did you mean to use the '--release' option?\n"
-        exit 1
-      else
-        IMAGE="$val"
-      fi
+      IMAGE="$val"
       ;;
     -s | --schema_update)
       SCHEMA_UPDATE=true
@@ -448,9 +415,14 @@ done
 # Get options from the selected env.list file
 source "$ENV_FILE"
 
-# Set variables for hybrid mode
+# Set variables for hybrid modes
 #----------------------------------------------------
 # Determine hybrid mode and set a variable to true for use throughout the script
+
+if [[ "$DC_INSTRUCTIONS_DIR" == *"gs://"* ]]; then
+  instructions_hybrid=true
+fi
+
 if [[ "$INPUT_DIR" == *"gs://"* ]] && [[ "$OUTPUT_DIR" == *"gs://"* ]]; then
   service_hybrid=true
 elif [[ "$INPUT_DIR" != *"gs://"* ]] && [[ "$OUTPUT_DIR" == *"gs://"* ]]; then
@@ -511,11 +483,8 @@ if [ "$service_hybrid" == true ]; then
     log_error "Invalid action for running in "hybrid" service mode.\n Valid options are 'run' or 'build_run'.\n"
     exit 1
   fi
-  if [ -n "$IMAGE" ]; then
-    RELEASE=''
-  fi
   CONTAINER="service"
-fi
+fi  
 
 # Call Docker commands
 ######################################

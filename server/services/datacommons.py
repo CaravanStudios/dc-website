@@ -30,8 +30,6 @@ from server.lib.cache import cache
 from server.lib.cache import memoize_and_log_mixer_usage
 from server.lib.cache import should_skip_cache
 import server.lib.config as libconfig
-from server.lib.feature_flags import is_feature_enabled
-from server.lib.feature_flags import USE_V2_API
 from server.routes import TIMEOUT
 from server.services.discovery import get_health_check_urls
 from server.services.discovery import get_service_url
@@ -379,36 +377,30 @@ def v2event(node, prop):
 
 def get_variable_group_info(nodes: List[str],
                             entities: List[str],
-                            numEntitiesExistence=1) -> Dict:
+                            numEntitiesExistence=1,
+                            include_definitions=False) -> Dict:
   """Gets the stat var group node information."""
-  url = get_service_url("/v1/bulk/info/variable-group")
+  url = get_service_url("/v2/bulk/info/variable-group")
   req_dict = {
       "nodes": nodes,
       "constrained_entities": entities,
       "num_entities_existence": numEntitiesExistence,
   }
+  if include_definitions:
+    req_dict["includeDefinitions"] = True
   return post(url, req_dict)
 
 
 def variable_info(nodes: List[str]) -> Dict:
   """Gets the stat var node information."""
-  if is_feature_enabled(USE_V2_API, app=current_app, request=request):
-    url = get_service_url("/v2/bulk/info/variable")
-  else:
-    url = get_service_url("/v1/bulk/info/variable")
+  url = get_service_url("/v2/bulk/info/variable")
   req_dict = {"nodes": nodes}
   return post(url, req_dict)
 
 
-def _get_variable_ancestors_v1(dcid: str):
-  """Gets the path of a stat var to the root of the stat var hierarchy using v1/variable/ancestors."""
-  url = get_service_url("/v1/variable/ancestors")
-  url = f"{url}/{dcid}"
-  return get(url).get("ancestors", [])
-
-
-def _get_variable_ancestors_v2(dcid: str):
-  """Gets the path of a stat var to the root of the stat var hierarchy using v2 node."""
+@cache.memoize(timeout=TIMEOUT, unless=should_skip_cache)
+def get_variable_ancestors(dcid: str):
+  """Gets the path of a stat var to the root of the stat var hierarchy."""
   ancestors = []
   curr = dcid
   visited = {dcid}
@@ -449,15 +441,6 @@ def _get_variable_ancestors_v2(dcid: str):
     curr = selected_parent
 
   return ancestors
-
-
-@cache.memoize(timeout=TIMEOUT, unless=should_skip_cache)
-def get_variable_ancestors(dcid: str):
-  """Gets the path of a stat var to the root of the stat var hierarchy."""
-  if is_feature_enabled(USE_V2_API):
-    return _get_variable_ancestors_v2(dcid)
-  else:
-    return _get_variable_ancestors_v1(dcid)
 
 
 def _get_all_values(resp, dcid, prop, key='dcid'):
@@ -672,15 +655,16 @@ def get_series_dates(parent_entity, child_type, variables):
   return {"datesByVariable": resp_dates, "facets": all_facets}
 
 
-def resolve(nodes, prop):
+def resolve(nodes, prop, resolver="place"):
   """Resolves nodes based on the given property.
 
     Args:
         nodes: A list of node dcids.
         prop: Property expression indicating the property to resolve.
+        resolver: The resolver to use (default: "place").
     """
   url = get_service_url("/v2/resolve")
-  return post(url, {"nodes": nodes, "property": prop})
+  return post(url, {"nodes": nodes, "property": prop, "resolver": resolver})
 
 
 def nl_search_vars(
@@ -784,10 +768,7 @@ def related_place(dcid, variables, ancestor=None, per_capita=False):
 
 
 def recognize_places(query):
-  if is_feature_enabled(USE_V2_API, app=current_app, request=request):
-    url = get_service_url("/v2/recognize/places")
-  else:
-    url = get_service_url("/v1/recognize/places")
+  url = get_service_url("/v2/recognize/places")
   resp = post(url, {"queries": [query]})
   return resp.get("queryItems", {}).get(query, {}).get("items", [])
 
@@ -816,18 +797,6 @@ def find_entities(places: list[str]) -> dict[str, list[str]]:
         retval[node] = dcids
 
   return retval
-
-
-def search_statvar(query, places, sv_only):
-  url = get_service_url("/v1/variable/search")
-  return post(
-      url,
-      {
-          "query": query,
-          "places": places,
-          "sv_only": sv_only,
-      },
-  )
 
 
 def filter_statvars(stat_vars, entities):

@@ -31,6 +31,7 @@ COPY mixer/proto/ proto
 COPY mixer/internal/ internal
 COPY mixer/cmd/ cmd
 COPY mixer/esp/ esp
+COPY mixer/deploy/featureflags/ deploy/featureflags
 
 # Build protobuf.
 RUN protoc \
@@ -122,14 +123,25 @@ RUN npm run-script build
 # #### Stage 4: Download base dc model and embeddings from GCS. ####
 FROM --platform=linux/amd64 google/cloud-sdk:slim as download
 
+# Remove auth check since these are public buckets and we don't have credentials within the container.
 # Copy model and embeddings.
-RUN mkdir -p /tmp/datcom-nl-models \
-    && gsutil -m cp -R gs://datcom-nl-models/ft_final_v20230717230459.all-MiniLM-L6-v2/ /tmp/datcom-nl-models/ \
-    && gsutil cp -R gs://datcom-nl-models/embeddings_medium_2024_05_09_18_01_32.ft_final_v20230717230459.all-MiniLM-L6-v2.csv /tmp/datcom-nl-models/
+RUN gcloud config set auth/disable_credentials True \
+    && mkdir -p /tmp/datcom-nl-models \
+    && gcloud storage cp --recursive \
+        gs://datcom-nl-models/ft_final_v20230717230459.all-MiniLM-L6-v2/ \
+        gs://datcom-nl-models/embeddings_medium_2024_05_09_18_01_32.ft_final_v20230717230459.all-MiniLM-L6-v2.csv \
+        /tmp/datcom-nl-models/
 
 
 # #### Final stage: Runtime env. ####
 FROM gcr.io/datcom-ci/datacommons-services-runtime:2024-08-08 as runner
+
+ARG MIXER_HASH=""
+ARG WEBSITE_HASH=""
+
+ENV MIXER_HASH=$MIXER_HASH \
+    WEBSITE_HASH=$WEBSITE_HASH
+
 
 # Env defaults.
 ENV WEBSITE_MIXER_API_ROOT=http://127.0.0.1:8081 \
@@ -153,6 +165,7 @@ WORKDIR /workspace
 COPY --from=mixer /workspace/bin/ bin
 COPY --from=mixer /workspace/esp/ esp
 COPY --from=mixer /workspace/internal/ internal
+COPY --from=mixer /workspace/deploy/featureflags deploy/featureflags
 COPY --from=mixer /workspace/mixer-grpc.pb .
 # nginx.
 COPY build/cdc_services/nginx.conf .

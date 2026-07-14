@@ -19,6 +19,15 @@ from google import genai
 from pydantic import BaseModel
 
 
+def get_gemini_config(schema: Optional[BaseModel] = None) -> dict:
+  config = {
+      "response_mime_type": "application/json",
+      "response_schema": schema,
+      "thinking_config": genai.types.ThinkingConfig(thinking_level="low")
+  } if schema else {}
+  return config
+
+
 def call_gemini(
     api_key: str,
     formatted_prompt: str,
@@ -30,18 +39,14 @@ def call_gemini(
         formatted_prompt: A string containing the structured prompt or input to be sent to the Gemini model for generation.
         schema: A Pydantic BaseModel class that defines the expected model's JSON response.
         gemini_model: A string specifying the name of the Gemini model to utilize.
-        retries: An integer indicating the maximum number of retries for the API call in the event of a failure
 
     Returns:
-    The output of the call after all necessary retries.
+    The output of the call.
     """
   if not api_key or not formatted_prompt:
     return None
 
-  generate_content_config = {
-      "response_mime_type": "application/json",
-      "response_schema": schema
-  } if schema else {}
+  generate_content_config = get_gemini_config(schema)
   gemini = genai.Client(api_key=api_key)
 
   try:
