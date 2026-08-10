@@ -29,7 +29,7 @@ pull_upstream_master() {
   upstream_remote=$(git remote -v | awk '/datacommonsorg/ && /\(push\)/ {print $1; exit}')
   if [ -z "$upstream_remote" ]; then
     echo "No remote found with 'datacommonsorg' in its URL."
-    exit 1
+    return 0
   fi
   echo "Remote for submodule is '${upstream_remote}'"
 
