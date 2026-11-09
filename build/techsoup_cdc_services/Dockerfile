@@ -23,9 +23,24 @@ RUN ls -alh
 
 RUN npm run-script build
 
+# Stage: IP to country DB for nginx country block.
+# DB-IP Lite, CC BY 4.0 (attribution: https://db-ip.com). Updated monthly.
+FROM node:20 AS geoip
+RUN set -e; \
+    for m in "$(date -u +%Y-%m)" "$(date -u -d "$(date -u +%Y-%m-01) -1 month" +%Y-%m)"; do \
+      curl -fsSL -o /tmp/db.mmdb.gz "https://download.db-ip.com/free/dbip-country-lite-$m.mmdb.gz" && break; \
+    done; \
+    gunzip -c /tmp/db.mmdb.gz > /tmp/dbip-country-lite.mmdb
+
 # Stage 2: Extended Flask App
 FROM base
 WORKDIR /workspace
+
+# nginx GeoIP2 module + country DB (used by nginx.conf).
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libnginx-mod-http-geoip2 && \
+    rm -rf /var/lib/apt/lists/*
+COPY --from=geoip /tmp/dbip-country-lite.mmdb /workspace/geoip/dbip-country-lite.mmdb
 
 # Override static files with extended ones
 #COPY --from=extended_builder /extended_app/techsoup_server/static/dist /app/dist
