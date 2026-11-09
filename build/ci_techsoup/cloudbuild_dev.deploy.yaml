@@ -105,7 +105,9 @@ steps:
     volumes:
       - name: 'ssh'
         path: /root/.ssh
-    waitFor: ["push-cdc-services"]
+    # Run only after deploy succeeds. If deploy fails, the build stops and
+    # this step does not run.
+    waitFor: ["deploy-cdc-services-to-cloud-run"]
 
 timeout: 3600s
 options:
