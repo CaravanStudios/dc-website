@@ -8,6 +8,8 @@
 .git
 .env
 
+.tmp
+
 pytest_log.txt
 
 **/eval/**/result

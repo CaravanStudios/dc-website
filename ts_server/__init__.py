@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 
 from flask import send_from_directory, abort
@@ -11,18 +12,23 @@ EXTENDED_STATIC = os.path.join(os.path.dirname(__file__), 'dist')
 BASE_STATIC = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'server', 'dist')
 EXTENDED_TEMPLATES = os.path.join(os.path.dirname(__file__), 'templates')
 
+
+def parse_domains(value):
+  """Parse TRUSTED_DOMAINS env: "a.com,b.com" or "['a.com', 'b.com']"."""
+  return [d.lower() for d in re.findall(r"[^\s,\[\]'\"]+", value or '')]
+
+
 def create_app():
   app = create_base_app()
 
   # Override config
   from ts_server.app_env.techsoup import Config
   app.config.from_object(Config)
-  app.config['TRUSTED_DOMAINS'] = os.environ.get('TRUSTED_DOMAINS', [])
+  app.config['TRUSTED_DOMAINS'] = parse_domains(os.environ.get('TRUSTED_DOMAINS'))
 
   if not os.environ.get('SECRET_KEY'):
-    random_secret_key = secrets.token_urlsafe(32)
-    app.logger.warning(f"No SECRET_KEY set in env. Using a random key for this session: {random_secret_key}")
-    app.config['SECRET_KEY'] = random_secret_key
+    app.logger.warning("No SECRET_KEY set in env. Using a random key for this process.")
+    app.config['SECRET_KEY'] = secrets.token_urlsafe(32)
   else:
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 
@@ -31,11 +37,6 @@ def create_app():
   app.config['FORM_FIELD_MAPPING_JSON'] = os.environ.get('FORM_FIELD_MAPPING_JSON', '')
 
   # Load templates: extended -> base
-  app.jinja_loader = ChoiceLoader([
-    FileSystemLoader(EXTENDED_TEMPLATES),
-    app.jinja_loader,
-  ])
-
   app.jinja_loader = ChoiceLoader([
     FileSystemLoader(EXTENDED_TEMPLATES),
     app.jinja_loader,
